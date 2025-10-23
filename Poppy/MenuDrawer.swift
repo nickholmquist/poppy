@@ -235,7 +235,7 @@ struct CreditsSheet: View {
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundStyle(theme.textDark.opacity(0.6))
                         
-                        Text("Your Name") // TODO: Replace with your name
+                        Text("Nick Holmquist") //
                             .font(.system(size: 18, weight: .medium, design: .rounded))
                             .foregroundStyle(theme.textDark)
                     }
