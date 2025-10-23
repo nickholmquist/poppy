@@ -2,129 +2,284 @@
 //  MenuDrawer.swift
 //  Poppy
 //
-//  Slide-out menu from right edge
+//  Bottom sheet menu with drag handle
 //
 
 import SwiftUI
+import StoreKit
 
 struct MenuDrawer: View {
     let theme: Theme
     @Binding var isOpen: Bool
     @EnvironmentObject var themeStore: ThemeStore
+    @EnvironmentObject var store: StoreManager
+    @EnvironmentObject var highs: HighscoreStore  // Need this for reset
     
-    // Settings states (these will be wired up to UserDefaults later)
-    @State private var hapticsEnabled: Bool = true
-    @State private var soundEnabled: Bool = false
+    // Settings states
+    @State private var dragOffset: CGFloat = 0
+    @State private var showingThemePurchase = false
+    @State private var selectedLockedTheme: (theme: Theme, name: String)?
+    @State private var showingCredits = false
+    @State private var showingResetConfirmation = false  // NEW
     
-    private let drawerWidth: CGFloat = UIScreen.main.bounds.width * 0.65
+    private let dismissThreshold: CGFloat = 200
     
     var body: some View {
-        ZStack(alignment: .trailing) {
-            // Dimmed background
-            if isOpen {
-                Color.black.opacity(0.4)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        closeDrawer()
-                    }
-                    .transition(.opacity)
-            }
-            
-            // Drawer panel
-            if isOpen {
-                VStack(spacing: 0) {
-                    // Header with close button
-                    HStack {
-                        Text("Menu")
-                            .font(.system(size: 28, weight: .heavy, design: .rounded))
-                            .foregroundStyle(theme.textDark)
-                        
-                        Spacer()
-                        
-                        Button(action: { closeDrawer() }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 28))
-                                .foregroundStyle(theme.textDark.opacity(0.6))
+        GeometryReader { geo in
+            ZStack(alignment: .bottom) {
+                // Dimmed background
+                if isOpen {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            closeDrawer()
                         }
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 20)
-                    .padding(.bottom, 12)
-                    
-                    ScrollView {
-                        VStack(spacing: 28) {
-                            // Settings Section
-                            MenuSection(title: "Settings", theme: theme) {
-                                ToggleRow(
-                                    icon: "hand.tap.fill",
-                                    title: "Haptics",
-                                    isOn: $hapticsEnabled,
-                                    theme: theme
-                                )
-                                
-                                ToggleRow(
-                                    icon: "speaker.wave.2.fill",
-                                    title: "Sound",
-                                    isOn: $soundEnabled,
-                                    theme: theme
-                                )
-                            }
-                            
-                            // Themes Section
-                            MenuSection(title: "Themes", theme: theme) {
-                                ThemeGrid(theme: theme, themeStore: themeStore)
-                            }
-                            
-                            // Info Section
-                            MenuSection(title: "Info", theme: theme) {
-                                InfoButton(
-                                    icon: "info.circle.fill",
-                                    title: "Privacy Policy",
-                                    theme: theme
-                                ) {
-                                    // Open privacy policy URL
-                                    print("Privacy policy tapped")
-                                }
-                                
-                                InfoButton(
-                                    icon: "heart.fill",
-                                    title: "Credits",
-                                    theme: theme
-                                ) {
-                                    // Show credits
-                                    print("Credits tapped")
-                                }
-                                
-                                // Version
-                                HStack {
-                                    Text("Version")
-                                        .font(.system(size: 16, design: .rounded))
-                                        .foregroundStyle(theme.textDark.opacity(0.6))
-                                    Spacer()
-                                    Text("1.0.0")
-                                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                                        .foregroundStyle(theme.textDark.opacity(0.6))
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
-                            }
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 8)
-                        .padding(.bottom, 32)
-                    }
+                        .transition(.opacity)
                 }
-                .frame(width: drawerWidth)
-                .background(theme.bgTop)
-                .transition(.move(edge: .trailing))
+                
+                // Bottom sheet
+                if isOpen {
+                    VStack(spacing: 0) {
+                        // Drag handle
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(theme.textDark.opacity(0.3))
+                            .frame(width: 40, height: 5)
+                            .padding(.top, 12)
+                            .padding(.bottom, 8)
+                        
+                        ScrollView {
+                            VStack(spacing: 22) {
+                                // Settings Section
+                                MenuSection(title: "Settings", theme: theme) {
+                                    ToggleRow(
+                                        icon: "hand.tap.fill",
+                                        title: "Haptics",
+                                        isOn: Binding(
+                                            get: { HapticsManager.shared.hapticsEnabled },
+                                            set: { HapticsManager.shared.hapticsEnabled = $0 }
+                                        ),
+                                        theme: theme
+                                    )
+                                    
+                                    ToggleRow(
+                                        icon: "speaker.wave.2.fill",
+                                        title: "Sound",
+                                        isOn: Binding(
+                                            get: { SoundManager.shared.soundEnabled },
+                                            set: { SoundManager.shared.soundEnabled = $0 }
+                                        ),
+                                        theme: theme
+                                    )
+                                }
+                                
+                                // Tip Jar - no section title, just the content
+                                TipJarView(theme: theme, store: store)
+                                
+                                // Themes Section
+                                MenuSection(title: "Themes", theme: theme) {
+                                    ThemeGrid(
+                                        theme: theme,
+                                        themeStore: themeStore,
+                                        store: store,
+                                        onLockedThemeTap: { lockedTheme, name in
+                                            selectedLockedTheme = (lockedTheme, name)
+                                            showingThemePurchase = true
+                                        }
+                                    )
+                                }
+                                
+                                // Info Section
+                                MenuSection(title: "Info", theme: theme) {
+                                    InfoButton(
+                                        icon: "arrow.triangle.2.circlepath",
+                                        title: "Reset High Scores",
+                                        theme: theme
+                                    ) {
+                                        showingResetConfirmation = true
+                                    }
+                                    
+                                    InfoButton(
+                                        icon: "arrow.clockwise.circle.fill",
+                                        title: "Restore Purchases",
+                                        theme: theme
+                                    ) {
+                                        Task {
+                                            await store.restorePurchases()
+                                        }
+                                    }
+                                    
+                                    InfoButton(
+                                        icon: "info.circle.fill",
+                                        title: "Privacy Policy",
+                                        theme: theme
+                                    ) {
+                                        // TODO: Replace with your actual privacy policy URL before shipping
+                                        if let url = URL(string: "https://yourapp.com/privacy") {
+                                            UIApplication.shared.open(url)
+                                        }
+                                    }
+                                    
+                                    InfoButton(
+                                        icon: "heart.fill",
+                                        title: "Credits",
+                                        theme: theme
+                                    ) {
+                                        showingCredits = true
+                                    }
+                                    
+                                    // Version
+                                    HStack {
+                                        Text("Version")
+                                            .font(.system(size: 15, design: .rounded))
+                                            .foregroundStyle(theme.textDark.opacity(0.6))
+                                        Spacer()
+                                        Text("1.0.0")
+                                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                                            .foregroundStyle(theme.textDark.opacity(0.6))
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 6)
+                            .padding(.bottom, 40)
+                        }
+                        .safeAreaInset(edge: .bottom) {
+                            // Add bottom safe area padding
+                            Color.clear
+                                .frame(height: 0)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: geo.size.height * 0.85)
+                    .background(
+                        RoundedRectangle(cornerRadius: 30, style: .continuous)
+                            .fill(theme.bgTop)
+                            .ignoresSafeArea(edges: .bottom)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 30, style: .continuous)
+                            .stroke(theme.textDark.opacity(0.2), lineWidth: 2)
+                            .ignoresSafeArea(edges: .bottom)
+                    )
+                    .shadow(color: theme.shadow.opacity(0.3), radius: 15, y: -3)
+                    .offset(y: max(0, dragOffset))
+                    .transition(.move(edge: .bottom))
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                if value.translation.height > 0 {
+                                    dragOffset = value.translation.height
+                                }
+                            }
+                            .onEnded { value in
+                                if value.translation.height > dismissThreshold {
+                                    closeDrawer()
+                                } else {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        dragOffset = 0
+                                    }
+                                }
+                            }
+                    )
+                }
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isOpen)
+        }
+        .sheet(isPresented: $showingThemePurchase) {
+            if let selected = selectedLockedTheme {
+                ThemePurchaseSheet(
+                    theme: theme,
+                    selectedTheme: selected.theme,
+                    themeName: selected.name,
+                    store: store
+                )
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isOpen)
+        .sheet(isPresented: $showingCredits) {
+            CreditsSheet(theme: theme)
+        }
+        .alert("Reset High Scores?", isPresented: $showingResetConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Reset", role: .destructive) {
+                highs.reset()
+                HapticsManager.shared.medium()
+            }
+        } message: {
+            Text("This will permanently erase all your high scores. This action cannot be undone.")
+        }
     }
     
     private func closeDrawer() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        isOpen = false
+        HapticsManager.shared.light()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            dragOffset = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            isOpen = false
+        }
+    }
+}
+
+// MARK: - Credits Sheet
+
+struct CreditsSheet: View {
+    let theme: Theme
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Poppy")
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundStyle(theme.textDark)
+                        
+                        Text("Version 1.0.0")
+                            .font(.system(size: 16, design: .rounded))
+                            .foregroundStyle(theme.textDark.opacity(0.6))
+                    }
+                    
+                    Divider()
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Created by")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(theme.textDark.opacity(0.6))
+                        
+                        Text("Your Name") // TODO: Replace with your name
+                            .font(.system(size: 18, weight: .medium, design: .rounded))
+                            .foregroundStyle(theme.textDark)
+                    }
+                    
+                    Divider()
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Special Thanks")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(theme.textDark.opacity(0.6))
+                        
+                        Text("Thank you for playing Poppy! Your support means everything.")
+                            .font(.system(size: 16, design: .rounded))
+                            .foregroundStyle(theme.textDark)
+                    }
+                    
+                    Spacer()
+                }
+                .padding(24)
+            }
+            .background(theme.bgTop)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundStyle(theme.accent)
+                }
+            }
+        }
     }
 }
 
@@ -136,9 +291,9 @@ struct MenuSection<Content: View>: View {
     @ViewBuilder let content: Content
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundStyle(theme.textDark.opacity(0.7))
                 .padding(.horizontal, 4)
             
@@ -160,12 +315,12 @@ struct ToggleRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 20))
+                .font(.system(size: 18))
                 .foregroundStyle(theme.accent)
-                .frame(width: 28)
+                .frame(width: 26)
             
             Text(title)
-                .font(.system(size: 17, weight: .medium, design: .rounded))
+                .font(.system(size: 16, weight: .medium, design: .rounded))
                 .foregroundStyle(theme.textDark)
             
             Spacer()
@@ -174,12 +329,111 @@ struct ToggleRow: View {
                 .labelsHidden()
                 .tint(theme.accent)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(theme.bgBottom.opacity(0.5))
         )
+    }
+}
+
+// MARK: - Tip Jar View
+
+struct TipJarView: View {
+    let theme: Theme
+    @ObservedObject var store: StoreManager
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            VStack(spacing: 4) {
+                Text("Love Poppy?")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(theme.textDark)
+                
+                Text("Support the dev! 🎉")
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(theme.textDark.opacity(0.7))
+            }
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
+            
+            if tipProducts.isEmpty {
+                // Show placeholder when products aren't loaded
+                Text("Loading tip options...")
+                    .font(.system(size: 13, design: .rounded))
+                    .foregroundStyle(theme.textDark.opacity(0.5))
+                    .padding(.vertical, 8)
+            } else {
+                HStack(spacing: 10) {
+                    ForEach(tipProducts, id: \.id) { product in
+                        TipButton(product: product, theme: theme, store: store)
+                    }
+                }
+                .padding(.horizontal, 14)
+            }
+            
+            if store.isPurchasing {
+                ProgressView()
+                    .tint(theme.accent)
+                    .padding(.top, 8)
+            }
+        }
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(theme.bgBottom.opacity(0.5))
+        )
+    }
+    
+    private var tipProducts: [Product] {
+        store.products.filter { $0.id.contains("tip") }
+    }
+}
+
+struct TipButton: View {
+    let product: Product
+    let theme: Theme
+    @ObservedObject var store: StoreManager
+    
+    var body: some View {
+        Button(action: {
+            Task {
+                do {
+                    try await store.purchase(product)
+                } catch {
+                    print("Purchase failed: \(error)")
+                }
+            }
+        }) {
+            VStack(spacing: 4) {
+                Text(tipEmoji)
+                    .font(.system(size: 24))
+                
+                Text(product.displayPrice)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(theme.textDark)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(theme.accent.opacity(0.15))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(theme.accent.opacity(0.3), lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(store.isPurchasing)
+    }
+    
+    private var tipEmoji: String {
+        if product.id.contains("small") { return "☕️" }
+        if product.id.contains("medium") { return "🍰" }
+        return "🎉"
     }
 }
 
@@ -188,6 +442,8 @@ struct ToggleRow: View {
 struct ThemeGrid: View {
     let theme: Theme
     @ObservedObject var themeStore: ThemeStore
+    @ObservedObject var store: StoreManager
+    let onLockedThemeTap: (Theme, String) -> Void
     
     let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -199,17 +455,27 @@ struct ThemeGrid: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 12) {
             ForEach(themeStore.themes.indices, id: \.self) { index in
+                let themeName = themeStore.names[index]
+                let isUnlocked = store.isThemeUnlocked(themeName)
+                
                 ThemeDot(
                     theme: themeStore.themes[index],
                     isSelected: themeStore.themes[index].accent == themeStore.current.accent,
-                    themeName: themeStore.names[index]
-                ) {
-                    themeStore.select(themeStore.themes[index])
-                }
+                    isLocked: !isUnlocked,
+                    themeName: themeName,
+                    onTap: {
+                        if isUnlocked {
+                            themeStore.select(themeStore.themes[index])
+                        } else {
+                            onLockedThemeTap(themeStore.themes[index], themeName)
+                        }
+                    },
+                    drawerTheme: theme
+                )
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(theme.bgBottom.opacity(0.5))
@@ -222,32 +488,43 @@ struct ThemeGrid: View {
 struct ThemeDot: View {
     let theme: Theme
     let isSelected: Bool
+    let isLocked: Bool
     let themeName: String
     let onTap: () -> Void
+    let drawerTheme: Theme
     
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 6) {
-                Circle()
-                    .fill(theme.accent)
-                    .frame(width: 44, height: 44)
-                    .overlay {
-                        if isSelected {
-                            Circle()
-                                .stroke(Color.white, lineWidth: 3)
-                            Circle()
-                                .stroke(theme.textDark.opacity(0.4), lineWidth: 4)
-                        } else {
-                            Circle()
-                                .stroke(theme.textDark.opacity(0.2), lineWidth: 2)
+            VStack(spacing: 5) {
+                ZStack {
+                    Circle()
+                        .fill(theme.accent)
+                        .frame(width: 40, height: 40)
+                        .overlay {
+                            if isSelected {
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 2.5)
+                                Circle()
+                                    .stroke(drawerTheme.textDark.opacity(0.4), lineWidth: 3.5)
+                            } else {
+                                Circle()
+                                    .stroke(drawerTheme.textDark.opacity(0.2), lineWidth: 1.5)
+                            }
                         }
+                    
+                    if isLocked {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.3), radius: 2)
                     }
+                }
                 
                 Text(themeName)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(theme.textDark.opacity(0.7))
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(drawerTheme.textDark)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.7)
             }
         }
         .buttonStyle(.plain)
@@ -266,28 +543,136 @@ struct InfoButton: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 20))
+                    .font(.system(size: 18))
                     .foregroundStyle(theme.accent)
-                    .frame(width: 28)
+                    .frame(width: 26)
                 
                 Text(title)
-                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(theme.textDark)
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(theme.textDark.opacity(0.3))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(theme.bgBottom.opacity(0.5))
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Theme Purchase Sheet
+
+struct ThemePurchaseSheet: View {
+    let theme: Theme
+    let selectedTheme: Theme
+    let themeName: String
+    @ObservedObject var store: StoreManager
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            // Preview
+            VStack(spacing: 12) {
+                Text("Preview: \(themeName)")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(theme.textDark)
+                
+                Circle()
+                    .fill(selectedTheme.accent)
+                    .frame(width: 80, height: 80)
+                    .overlay(
+                        Circle()
+                            .stroke(theme.textDark.opacity(0.2), lineWidth: 2)
+                    )
+            }
+            .padding(.top, 30)
+            
+            Spacer()
+            
+            // Purchase options
+            VStack(spacing: 12) {
+                if let individualProduct = store.product(for: themeProductID) {
+                    PurchaseButton(
+                        title: "Unlock \(themeName)",
+                        subtitle: individualProduct.displayPrice,
+                        theme: theme,
+                        isPurchasing: store.isPurchasing
+                    ) {
+                        Task {
+                            try? await store.purchase(individualProduct)
+                            dismiss()
+                        }
+                    }
+                }
+                
+                if let bundleProduct = store.product(for: StoreManager.ProductID.allThemes) {
+                    PurchaseButton(
+                        title: "Unlock All Themes",
+                        subtitle: "\(bundleProduct.displayPrice) • Save $1",
+                        theme: theme,
+                        isPurchasing: store.isPurchasing,
+                        isProminent: true
+                    ) {
+                        Task {
+                            try? await store.purchase(bundleProduct)
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 30)
+        }
+        .background(theme.bgTop)
+    }
+    
+    private var themeProductID: String {
+        switch themeName {
+        case "Citrus": return StoreManager.ProductID.citrusTheme
+        case "Beachglass": return StoreManager.ProductID.beachglassTheme
+        case "Memphis": return StoreManager.ProductID.memphisTheme
+        case "Minimal Light": return StoreManager.ProductID.minimalLightTheme
+        case "Minimal Dark": return StoreManager.ProductID.minimalDarkTheme
+        default: return ""
+        }
+    }
+}
+
+struct PurchaseButton: View {
+    let title: String
+    let subtitle: String
+    let theme: Theme
+    let isPurchasing: Bool
+    var isProminent: Bool = false
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                Text(subtitle)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .opacity(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isProminent ? theme.accent : theme.bgBottom)
+            )
+            .foregroundStyle(isProminent ? theme.textOnAccent : theme.textDark)
+        }
+        .disabled(isPurchasing)
+        .opacity(isPurchasing ? 0.6 : 1.0)
     }
 }
 
@@ -300,5 +685,6 @@ struct InfoButton: View {
         
         MenuDrawer(theme: .daylight, isOpen: $isOpen)
             .environmentObject(ThemeStore())
+            .environmentObject(StoreManager.preview)
     }
 }

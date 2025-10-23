@@ -71,7 +71,7 @@ extension Theme {
     
     // 4) Sherbet
     static let sherbet = Theme(
-        accent:     hex("#6B8CFF"),
+        accent:     hex("#E879F9"),
         text:       Color(red: 0.10, green: 0.12, blue: 0.14),
         textDark:   Color(red: 0.10, green: 0.12, blue: 0.14),
         textOnAccent: Color(red: 0.10, green: 0.12, blue: 0.14),
@@ -84,42 +84,76 @@ extension Theme {
     
     // 5) Beachglass — slightly darker day
     static let beachglass = Theme(
-        accent:     hex("#FFA6B0"),
+        accent:     hex("#D46E79"),
         text:       Color(red: 0.10, green: 0.12, blue: 0.14),
         textDark:   Color(red: 0.10, green: 0.12, blue: 0.14),
         textOnAccent: Color(red: 0.10, green: 0.12, blue: 0.14),
         buttonInactive: hex("#CFE3DD"),
         shadow:     .black.opacity(0.20),
         stroke:     .black.opacity(0.12),
-        bgTop:      hex("#D0F7EA"),
-        bgBottom:   hex("#AEE6D4")
+        bgTop:      hex("#64B887"),
+        bgBottom:   hex("#61B383")
     )
     
     // 6) Citrus — night vibe
     static let citrus = Theme(
-        accent:     hex("#FFB673"),                  // soft tangerine
-        text:       Color.white.opacity(0.92),       // light ink on warm dark page
-        textDark:   Color.white.opacity(0.92),
-        textOnAccent: hex("#2A1F12"),                // cocoa-brown on accent
-        buttonInactive: hex("#3E372A"),
-        shadow:     .black.opacity(0.60),
-        stroke:     .black.opacity(0.36),
-        bgTop:      hex("#17130D"),
-        bgBottom:   hex("#2B2115")
+        accent:     hex("#FF6B9D"),  // Hot pink/coral
+        text:       hex("#2A1810"),  // Deep brown
+        textDark:   hex("#2A1810"),
+        textOnAccent: hex("#2A1810"),
+        buttonInactive: hex("#F4C2A0"),  // Peachy tan
+        shadow:     .black.opacity(0.25),
+        stroke:     .black.opacity(0.15),
+        bgTop:      hex("#FFE156"),  // Bright yellow
+        bgBottom:   hex("#FF9A56")   // Tangerine orange
     )
     
     // 7) Ember — night vibe with orange and charcoal
-    static let ember = Theme(
-        accent:     hex("#FF8C42"),                  // vibrant orange
-        text:       hex("#E8E8E8"),                  // light grey text on dark
-        textDark:   hex("#E8E8E8"),
-        textOnAccent: hex("#1A1A1A"),                // dark charcoal on orange
-        buttonInactive: hex("#3D3D3D"),
-        shadow:     .black.opacity(0.65),
-        stroke:     .black.opacity(0.40),
-        bgTop:      hex("#2A2A2A"),                  // charcoal grey
-        bgBottom:   hex("#1A1A1A")                   // deeper charcoal
+    static let twilight = Theme(
+        accent:     hex("#A78BFA"),  // Soft lavender
+        text:       hex("#E8E4F3"),  // Light purple-grey
+        textDark:   hex("#E8E4F3"),
+        textOnAccent: hex("#1E1B29"),  // Deep purple-navy
+        buttonInactive: hex("#3D3850"),
+        shadow:     .black.opacity(0.55),
+        stroke:     .black.opacity(0.35),
+        bgTop:      hex("#000000"),  // Deep purple-navy
+        bgBottom:   hex("#0A0A0A")   // Rich purple
     )
+    static let memphis = Theme(
+        accent:     hex("#00CFC1"),  // Teal
+        text:       hex("#1A1A2E"),  // Deep purple-navy
+        textDark:   hex("#1A1A2E"),
+        textOnAccent: hex("#1A1A2E"),
+        buttonInactive: hex("#D4B5F2"),  // Light purple
+        shadow:     .black.opacity(0.20),
+        stroke:     .black.opacity(0.15),
+        bgTop:      hex("#9D4EDD"),  // Purple
+        bgBottom:   hex("#FFD60A")   // Yellow
+    )
+    static let minimalLight = Theme(
+        accent:     hex("#E8D5B5"),  // Warm cream
+        text:       hex("#2C2C2C"),
+        textDark:   hex("#2C2C2C"),
+        textOnAccent: hex("#2C2C2C"),
+        buttonInactive: hex("#E5E5E5"),
+        shadow:     .black.opacity(0.12),
+        stroke:     .black.opacity(0.08),
+        bgTop:      hex("#FAFAFA"),
+        bgBottom:   hex("#F0F0F0")
+    )
+    static let minimalDark = Theme(
+        accent:     hex("#DC3545"),  // Deep red
+        text:       hex("#FFFFFF"),
+        textDark:   hex("#FFFFFF"),
+        textOnAccent: hex("#FFFFFF"),  // White text on red
+        buttonInactive: hex("#3A3A3A"),
+        shadow:     .black.opacity(0.60),
+        stroke:     .white.opacity(0.12),
+        bgTop:      hex("#000000"),
+        bgBottom:   hex("#0A0A0A")
+    )
+    
 }
 // MARK: - Local hex helper (keeps this file self-contained)
 @inline(__always)

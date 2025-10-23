@@ -2,7 +2,7 @@
 //  LiquidGlassTimePicker.swift
 //  Poppy
 //
-//  Liquid glass magnifying time selector
+//  Liquid glass magnifying time selector with drag handle
 //
 
 import SwiftUI
@@ -20,6 +20,9 @@ struct LiquidGlassTimePicker: View {
     @State private var previousIndex: Int = 2
     @State private var isAppearing = false // Track sheet animation
     @State private var exitOffset: CGFloat = 0 // Track pop-up on exit
+    @State private var dragOffset: CGFloat = 0
+    
+    private let dismissThreshold: CGFloat = 150
     
     var body: some View {
         ZStack {
@@ -35,6 +38,13 @@ struct LiquidGlassTimePicker: View {
                 Spacer()
                 
                 VStack(spacing: 0) {
+                    // Drag handle
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(theme.textDark.opacity(0.3))
+                        .frame(width: 40, height: 5)
+                        .padding(.top, 12)
+                        .padding(.bottom, 8)
+                    
                     // Buttons at top - in corners
                     HStack {
                         Button(action: { dismissSheet() }) {
@@ -68,7 +78,7 @@ struct LiquidGlassTimePicker: View {
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 20)
+                    .padding(.top, 10)
                     .padding(.bottom, 10)
                     
                     // Magnifying glass and arc area
@@ -154,6 +164,24 @@ struct LiquidGlassTimePicker: View {
                         .stroke(theme.textDark.opacity(0.6), lineWidth: 3)
                 )
                 .shadow(color: theme.shadow.opacity(0.3), radius: 15, y: -3)
+                .offset(y: max(0, dragOffset))
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            if value.translation.height > 0 {
+                                dragOffset = value.translation.height
+                            }
+                        }
+                        .onEnded { value in
+                            if value.translation.height > dismissThreshold {
+                                dismissSheet()
+                            } else {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    dragOffset = 0
+                                }
+                            }
+                        }
+                )
             }
             .ignoresSafeArea(edges: .bottom)
             .offset(y: isAppearing ? exitOffset : 800)

@@ -2,21 +2,20 @@
 //  TopBar.swift
 //  Poppy
 //
-//  Created by Nick Holmquist on 10/9/25.
-//
 
 import SwiftUI
 
 struct TopBar: View {
     let theme: Theme
-    let compact: Bool
+    let layout: LayoutController
     let onThemeTap: () -> Void
+    let onMenuTap: () -> Void
 
     var body: some View {
         ZStack {
             HStack {
                 Button(action: {
-                    // Haptic feedback on tap
+                    SoundManager.shared.play(.themeChange)
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     onThemeTap()
                 }) {
@@ -31,15 +30,28 @@ struct TopBar: View {
                         .contentShape(Circle())
                         .accessibilityLabel("Change theme")
                 }
+                
                 Spacer()
+                
+                Button(action: {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    onMenuTap()
+                }) {
+                    Circle()
+                        .fill(theme.textDark.opacity(0.6))
+                        .frame(width: 32, height: 32)
+                        .shadow(color: theme.shadow.opacity(0.3), radius: 7, x: 0, y: 2)
+                        .contentShape(Circle())
+                        .accessibilityLabel("Open menu")
+                }
             }
 
             Text("Poppy")
-                .font(.system(size: compact ? 34 : 30, weight: .heavy, design: .rounded))
+                .font(.system(size: layout.topBarTitleSize, weight: .heavy, design: .rounded))
                 .foregroundStyle(theme.textDark)
         }
-        .padding(.top, compact ? 4 : 0)
-        .padding(.horizontal, 30)
+        .padding(.top, layout.topBarPaddingTop)
+        .padding(.horizontal, layout.topBarPaddingHorizontal)
         .zIndex(5)
     }
 }

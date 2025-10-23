@@ -22,25 +22,26 @@ struct ContentView: View {
     @State private var showConfetti = false
     @State private var selectedTime: Int? = nil
     @State private var endCardLocked = false
+    @State private var showMenu = false
     
     // Theme transition animation
     @State private var isTransitioning = false
     @State private var transitionOldTheme: Theme? = nil
-
+    
     var theme: Theme { store.current }
 
     var body: some View {
         GeometryReader { geo in
-            let M = LayoutMetrics(geo)
+            let layout = LayoutController(geo)
 
             ZStack {
                 // Base layer - OLD theme (or current if not transitioning)
                 let baseTheme = isTransitioning ? (transitionOldTheme ?? theme) : theme
-                gameUIView(geo: geo, M: M, theme: baseTheme)
+                gameUIView(layout: layout, theme: baseTheme)
                 
                 // Overlay layer - NEW theme (only during transition)
                 if isTransitioning {
-                    gameUIView(geo: geo, M: M, theme: theme)
+                    gameUIView(layout: layout, theme: theme)
                         .mask {
                             ThemeTransitionMask(isAnimating: $isTransitioning)
                         }
@@ -59,7 +60,7 @@ struct ContentView: View {
                     if !ProcessInfo.processInfo.isPreview {
                         UINotificationFeedbackGenerator().notificationOccurred(.success)
                     }
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.7)) {
                         showConfetti = true
                     }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
@@ -79,35 +80,43 @@ struct ContentView: View {
                 }
             }
         }
+        .onAppear {
+            engine.setHighscoreStore(highs)
+        }
     }
     
     // MARK: - Game UI View
     
     @ViewBuilder
-    private func gameUIView(geo: GeometryProxy, M: LayoutMetrics, theme: Theme) -> some View {
-        VStack(spacing: M.stackSpacing) {
-            // Title row with theme dot
-            TopBar(theme: theme, compact: M.compact) {
-                store.cycleNext()
-                triggerThemeTransition()
-            }
+    private func gameUIView(layout: LayoutController, theme: Theme) -> some View {
+        VStack(spacing: 0) {
+            // Title row with theme dot and menu button
+            TopBar(
+                theme: theme,
+                layout: layout,
+                onThemeTap: {
+                    SoundManager.shared.play(.themeChange)
+                    store.cycleNext()
+                    triggerThemeTransition()
+                    engine.triggerThemeWave()
+                },
+                onMenuTap: {
+                    showMenu = true
+                }
+            )
 
             // Scoreboard
             ScoreboardPanel(
-                maxWidth: M.scoreboardW,
-                height: M.scoreboardH,
+                layout: layout,
                 theme: theme,
-                highs: highs,
-                tintOpacity: 0.95,
-                brightnessLift: 0.06
+                highs: highs
             )
-            .frame(maxWidth: M.scoreboardW, minHeight: M.scoreboardH)
-            .padding(.top, M.titleToBoard)
+            .padding(.top, layout.scoreboardTopPadding)
 
             // Score and Time
             StatsRow(
                 theme: theme,
-                compact: M.compact,
+                layout: layout,
                 score: engine.score,
                 remainingSeconds: Int(ceil(engine.remaining)),
                 isRunning: engine.isRunning,
@@ -115,55 +124,54 @@ struct ContentView: View {
                     selectedTime = engine.roundLength
                     showTimePicker = true
                 },
-                scoreBump: engine.scoreBump
+                scoreBump: engine.scoreBump,
+                highScoreJustBeaten: engine.isNewHighScore
             )
-            .padding(.horizontal, M.statsSide)
-            .padding(.top, M.statsTop)
-            .frame(maxWidth: M.maxW)
+            .padding(.horizontal, layout.statsHorizontalPadding)
+            .padding(.top, layout.statsTopPadding)
+            .frame(maxWidth: layout.contentWidth)
 
             Spacer(minLength: 0)
 
             // Board
             BoardView(
                 theme: theme,
+                layout: layout,
                 active: engine.active,
                 pressed: engine.pressed,
                 onTap: { engine.tapDot($0) },
-                compact: M.compact,
                 bounceAll: engine.bounceAll,
-                bounceIndividual: engine.bounceIndividual
+                bounceIndividual: engine.bounceIndividual,
+                rippleDisplacements: engine.rippleDisplacements,
+                idleTapFlash: engine.idleTapFlash,
+                themeWaveDisplacements: engine.themeWaveDisplacements
             )
             .id(engine.boardEpoch)
-            .frame(maxWidth: M.boardCapW)
-            .frame(height: M.boardH)
-            .padding(.bottom, M.boardToButtonGap)
+            .frame(maxWidth: layout.boardWidth)
+            .frame(height: layout.boardHeight)
+            .padding(.bottom, layout.boardBottomPadding)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background {
-            ZStack {
-                theme.background.ignoresSafeArea()
-            }
+            theme.background.ignoresSafeArea()
         }
 
         // Start or Pop button pinned to bottom
         .safeAreaInset(edge: .bottom) {
-            let safeW = max(1, geo.size.width)
-            let insetWidth = max(44, min(safeW - 32, 500))
             StartButton(
                 theme: theme,
-                title: engine.isRunning ? (engine.popReady ? "POP" : "POP") : "Start",
-                textColor: theme.textOnAccent,
-                tintOpacity: 0.95,
-                brightnessLift: 0.06
+                layout: layout,
+                title: engine.isRunning ? (engine.popReady ? "POP" : "POP") : "START",
+                textColor: theme.textOnAccent
             ) {
                 if !engine.isRunning { engine.start() }
                 else if engine.popReady { engine.pressPop() }
             }
             .disabled(engine.isRunning && !engine.popReady)
             .opacity((engine.isRunning && !engine.popReady) ? 0.6 : 1.0)
-            .frame(width: insetWidth, height: M.startH)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 10)
+            .frame(width: layout.startButtonWidth, height: layout.startButtonHeight)
+            .padding(.horizontal, layout.startButtonHorizontalPadding)
+            .padding(.bottom, layout.startButtonBottomPadding)
             .zIndex(10)
         }
 
@@ -203,6 +211,11 @@ struct ContentView: View {
                 }
             }
         }
+        .overlay {
+            MenuDrawer(theme: theme, isOpen: $showMenu)
+                .environmentObject(highs)
+                .zIndex(100)
+        }
         
         // Put the paper texture last so it sits above everything
         .paperTextureOverlay()
@@ -221,4 +234,5 @@ struct ContentView: View {
     ContentView()
         .environmentObject(HighscoreStore())
         .environmentObject(ThemeStore())
+        .environmentObject(StoreManager.preview)
 }

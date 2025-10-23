@@ -9,41 +9,24 @@ import SwiftUI
 
 struct SplashScreen: View {
     @Binding var isActive: Bool
-    @State private var scale: CGFloat = 0.8
-    @State private var opacity: Double = 0.0
+    @State private var scale: CGFloat = 1.0  // Start at full size
+    @State private var opacity: Double = 1.0  // Start at full opacity
     
     let theme = Theme.daylight
     
     var body: some View {
         ZStack {
-            // Background gradient
-            theme.background
+            // Your full splash image with background and texture already included
+            Image("splash_logo")
+                .resizable()
+                .scaledToFit()  // Fit entire image without cropping
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea()
-            
-            VStack(spacing: 20) {
-                // Your Illustrator splash image
-                // Replace "splash_logo" with your actual asset name
-                Image("splash_logo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 280)
-                    .scaleEffect(scale)
-                    .opacity(opacity)
-                
-                // Optional: Loading indicator or tagline
-                Text("Pop. Score. Repeat.")
-                    .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .foregroundStyle(theme.textDark.opacity(0.7))
-                    .opacity(opacity)
-            }
-            .padding(40)
+                .scaleEffect(scale)
+                .opacity(opacity)
         }
         .onAppear {
-            // Animate in
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
-                scale = 1.0
-                opacity = 1.0
-            }
+            // No fade-in animation - splash is immediately visible!
             
             // Dismiss after delay
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {

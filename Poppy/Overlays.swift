@@ -18,15 +18,13 @@ struct CountdownOverlay: View {
             Text("\(count)")
                 .font(.system(size: 120, weight: .black, design: .rounded))
                 .kerning(-2)
-                .foregroundStyle(theme.textOnAccent)
+                .foregroundStyle(theme.text)  // Changed from theme.textOnAccent
                 .shadow(color: .black.opacity(0.35), radius: 4, x: 0, y: 2)
         }
         .onAppear {
-            // Trigger haptic pulse when countdown number appears
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
         .onChange(of: count) { _, _ in
-            // Trigger haptic pulse when countdown number changes
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
     }
@@ -112,6 +110,7 @@ struct EndCardOverlay: View {
                 ConfettiView()
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
+                    .compositingGroup() 
                     .transition(.opacity)
             }
         }

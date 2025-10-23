@@ -6,32 +6,24 @@
 import SwiftUI
 
 struct ScoreboardPanel: View {
-    let maxWidth: CGFloat
-    /// A soft cap for height. The image will never exceed this, but will keep its aspect.
-    let height: CGFloat
+    let layout: LayoutController
     let theme: Theme
     @ObservedObject var highs: HighscoreStore
 
-    /// Optional tint over the PNG (0 = none)
-    var tintOpacity: Double = 0.95
-    var brightnessLift: Double = 0.06
-
-
-    // Typography that scales with the final panel height
-    private func titleSize(_ h: CGFloat) -> CGFloat    { min(28, h * 0.16) }
-    private func rowLabel(_ h: CGFloat) -> CGFloat     { min(18, h * 0.11) }
-    private func rowValue(_ h: CGFloat) -> CGFloat     { min(20, h * 0.12) }
-    private func padH(_ h: CGFloat) -> CGFloat         { max(10, h * 0.06) }
-    private func padV(_ h: CGFloat) -> CGFloat         { max(10, h * 0.08) }
+    // These now just pull from LayoutController
+    private var titleSize: CGFloat { layout.scoreboardTitleSize }
+    private var rowLabel: CGFloat { layout.scoreboardLabelSize }
+    private var rowValue: CGFloat { layout.scoreboardValueSize }
+    
+    // Keep padding calculations proportional to height
+    private func padH(_ h: CGFloat) -> CGFloat { max(10, h * 0.04) }
+    private func padV(_ h: CGFloat) -> CGFloat { max(10, h * 0.06) }
 
     var body: some View {
-        // Load the PNG to get the true aspect ratio
         let ui = UIImage(named: "Scoreboard")
-        // Fallback aspect if image fails to load (your file is 1201x768)
         let aspect = ui.map { $0.size.width / $0.size.height } ?? (1201.0 / 768.0)
-
-        // Compute the rendered height: fit to width, but do not exceed the given height cap
-        let fittedHeight = min(maxWidth / aspect, height)
+        let width = layout.scoreboardWidth
+        let height = layout.scoreboardHeight
 
         ZStack {
             if let ui {
@@ -39,67 +31,63 @@ struct ScoreboardPanel: View {
                     .renderingMode(.original)
                     .resizable()
                     .aspectRatio(aspect, contentMode: .fit)
-                    .frame(width: maxWidth, height: fittedHeight, alignment: .center)
-                    .paperTint(theme.accent, opacity: tintOpacity, brightness: brightnessLift) // <- same as Start button
-            }
-            else {
-                // Simple fallback if the asset is missing
+                    .frame(width: width, height: height, alignment: .center)
+                    .paperTint(theme.accent, opacity: 0.95, brightness: 0.06)
+            } else {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(theme.bgBottom.opacity(0.95))
                     .overlay(
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .stroke(.black.opacity(0.25), lineWidth: 1.25)
                     )
-                    .frame(width: maxWidth, height: fittedHeight)
+                    .frame(width: width, height: height)
             }
 
-            // Content overlay
-            VStack(spacing: 10) {
+            VStack(spacing: 14) {
                 Text("High Scores")
-                    .font(.system(size: titleSize(fittedHeight), weight: .bold, design: .rounded))
+                    .font(.system(size: titleSize, weight: .bold, design: .rounded))
                     .foregroundStyle(theme.textOnAccent)
                     .minimumScaleFactor(0.85)
                     .lineLimit(1)
 
-                HStack(spacing: fittedHeight * 0.20) {
+                HStack(spacing: height * 0.20) {
                     col([
                         ("10s", highs.best[10] ?? 0),
                         ("20s", highs.best[20] ?? 0),
                         ("30s", highs.best[30] ?? 0)
-                    ], h: fittedHeight)
+                    ])
                     col([
                         ("40s", highs.best[40] ?? 0),
                         ("50s", highs.best[50] ?? 0),
                         ("60s", highs.best[60] ?? 0)
-                    ], h: fittedHeight)
+                    ])
                 }
             }
-            .padding(.horizontal, padH(fittedHeight))
-            .padding(.vertical, padV(fittedHeight))
+            .padding(.horizontal, padH(height))
+            .padding(.vertical, padV(height))
+            .offset(y: -12)
         }
-        .frame(width: maxWidth, height: fittedHeight)
-        .allowsHitTesting(false)   // never swallow taps
+        .frame(width: width, height: height)
+        .allowsHitTesting(false)
     }
 
-    // MARK: helpers
-
     @ViewBuilder
-    private func col(_ items: [(String, Int)], h: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: h * 0.06) {
+    private func col(_ items: [(String, Int)]) -> some View {
+        VStack(alignment: .leading, spacing: layout.scoreboardHeight * 0.06) {
             ForEach(items, id: \.0) { label, value in
                 HStack(spacing: 8) {
                     Text(label)
-                        .font(.system(size: rowLabel(h), weight: .medium, design: .rounded))
+                        .font(.system(size: rowLabel, weight: .medium, design: .rounded))
                         .foregroundStyle(theme.textOnAccent.opacity(0.9))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
 
-                    Text("------") // short divider so we avoid em dashes
-                        .font(.system(size: rowLabel(h)))
+                    Text("------")
+                        .font(.system(size: rowLabel))
                         .foregroundStyle(theme.textOnAccent.opacity(0.5))
 
                     Text("\(value)")
-                        .font(.system(size: rowValue(h), weight: .bold, design: .rounded))
+                        .font(.system(size: rowValue, weight: .bold, design: .rounded))
                         .foregroundStyle(theme.textOnAccent)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
