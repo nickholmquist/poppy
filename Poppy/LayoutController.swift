@@ -157,11 +157,11 @@ struct LayoutController {
         if isIPad {
             return -40
         } else if screenHeight < 770 {
-            return 35
+            return 38
         } else if screenHeight < 860 {
-            return 35
+            return 38
         } else {
-            return 0
+            return 5
         }
     }
     

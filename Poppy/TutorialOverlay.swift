@@ -12,7 +12,7 @@ struct TutorialOverlay: View {
     @Binding var isShowing: Bool
     
     @State private var currentPage = 0
-    private let totalPages = 3
+    private let totalPages = 5
     
     var body: some View {
         ZStack {
@@ -27,7 +27,7 @@ struct TutorialOverlay: View {
                     tutorialPage(
                         emoji: "🎯",
                         title: "Tap the Pink Dots",
-                        description: "Watch for dots that light up pink. Tap them quickly!"
+                        description: "Hit Start to Begin. Watch for dots that light up and tap them as quickly as possible!"
                     )
                     .tag(0)
                     
@@ -35,17 +35,33 @@ struct TutorialOverlay: View {
                     tutorialPage(
                         emoji: "⚡",
                         title: "Race Against Time",
-                        description: "You have limited time to tap as many dots as possible. Work fast!"
+                        description: "You have limited time to tap as many dots as possible. How fast are you?"
                     )
                     .tag(1)
                     
                     // Page 3: Press POP
                     tutorialPage(
                         emoji: "🚀",
-                        title: "Press POP to Clear",
-                        description: "When all dots are pressed, hit the big POP button to clear the board and score big!"
+                        title: "Press POP Fast",
+                        description: "When all dots are pressed, hit the big POP button to reset the board to continue popping before time is up!"
                     )
                     .tag(2)
+                    
+                    // Page 4: Customize your game
+                    tutorialPage(
+                        emoji: "🎨",
+                        title: "Customize Your Game",
+                        description: "Tap the theme dot in the top left to change colors. Tap the time to adjust how much time you have to play!"
+                    )
+                    .tag(3)
+                    
+                    // Page 5: Beat your high scores
+                    tutorialPage(
+                        emoji: "🏆",
+                        title: "Can You Beat Your High Scores?",
+                        description: "Track your best scores for each time limit. Challenge yourself to improve with every round you play!"
+                    )
+                    .tag(4)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .always))
                 .indexViewStyle(.page(backgroundDisplayMode: .always))

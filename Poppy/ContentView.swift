@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var selectedTime: Int? = nil
     @State private var endCardLocked = false
     @State private var showMenu = false
+    @State private var showTutorial = !UserDefaults.standard.hasSeenTutorial
     
     // Theme transition animation
     @State private var isTransitioning = false
@@ -83,6 +84,12 @@ struct ContentView: View {
         .onAppear {
             engine.setHighscoreStore(highs)
         }
+        .overlay {
+                    if showTutorial {
+                        TutorialOverlay(theme: theme, isShowing: $showTutorial)
+                            .transition(.opacity)
+                    }
+                }
     }
     
     // MARK: - Game UI View
