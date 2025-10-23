@@ -17,8 +17,6 @@ struct MenuDrawer: View {
     
     // Settings states
     @State private var dragOffset: CGFloat = 0
-    @State private var showingThemePurchase = false
-    @State private var selectedLockedTheme: (theme: Theme, name: String)?
     @State private var showingCredits = false
     @State private var showingResetConfirmation = false  // NEW
     
@@ -81,9 +79,8 @@ struct MenuDrawer: View {
                                         theme: theme,
                                         themeStore: themeStore,
                                         store: store,
-                                        onLockedThemeTap: { lockedTheme, name in
-                                            selectedLockedTheme = (lockedTheme, name)
-                                            showingThemePurchase = true
+                                        onLockedThemeTap: { _, _ in
+                                            // No-op - all themes unlocked
                                         }
                                     )
                                 }
@@ -185,16 +182,6 @@ struct MenuDrawer: View {
                 }
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isOpen)
-        }
-        .sheet(isPresented: $showingThemePurchase) {
-            if let selected = selectedLockedTheme {
-                ThemePurchaseSheet(
-                    theme: theme,
-                    selectedTheme: selected.theme,
-                    themeName: selected.name,
-                    store: store
-                )
-            }
         }
         .sheet(isPresented: $showingCredits) {
             CreditsSheet(theme: theme)

@@ -228,20 +228,8 @@ final class StoreManager: NSObject, ObservableObject {
     // MARK: - Helper Methods
     
     func isThemeUnlocked(_ themeName: String) -> Bool {
-        // Free themes
-        let freeThemes = ["Daylight", "Breeze", "Meadow", "Sherbet", "Twilight"]
-        if freeThemes.contains(themeName) {
-            return true
-        }
-        
-        // Check if "All Themes" bundle is purchased
-        if purchasedProductIDs.contains(ProductID.allThemes) {
-            return true
-        }
-        
-        // Check individual theme purchase
-        let productID = themeToProductID(themeName)
-        return purchasedProductIDs.contains(productID)
+        // All themes unlocked for initial release
+        return true
     }
     
     private func themeToProductID(_ themeName: String) -> String {
