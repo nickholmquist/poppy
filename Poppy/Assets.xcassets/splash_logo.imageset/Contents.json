@@ -1,8 +1,12 @@
 {
   "images" : [
     {
-      "filename" : "splash@4x.png",
-      "idiom" : "universal"
+      "filename" : "splash bg@4x.png",
+      "idiom" : "iphone"
+    },
+    {
+      "filename" : "splash bg copy@4x.png",
+      "idiom" : "ipad"
     }
   ],
   "info" : {

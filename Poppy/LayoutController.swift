@@ -126,7 +126,7 @@ struct LayoutController {
     
     var statsScoreSize: CGFloat {
         if isIPad {
-            return 40
+            return 80
         } else {
             return screenHeight < 770 ? 36 : 35
         }
@@ -135,7 +135,7 @@ struct LayoutController {
     // MARK: - Board (Dot Grid)
     var boardWidth: CGFloat {
         if isIPad {
-            return contentWidth * 0.95
+            return contentWidth * 1.1
         } else {
             return contentWidth * 0.90
         }
@@ -143,7 +143,7 @@ struct LayoutController {
     
     var boardHeight: CGFloat {
         if isIPad {
-            return 420
+            return 480
         } else if screenHeight < 770 {
             return 190
         } else if screenHeight < 860 {
@@ -155,7 +155,7 @@ struct LayoutController {
     
     var boardBottomPadding: CGFloat {
         if isIPad {
-            return -40
+            return -55
         } else if screenHeight < 770 {
             return 38
         } else if screenHeight < 860 {
@@ -186,7 +186,7 @@ struct LayoutController {
     
     var startButtonHeight: CGFloat {
         if isIPad {
-            return 100
+            return 175
         } else if screenHeight < 770 {
             return 90
         } else if screenHeight < 860 {
@@ -197,7 +197,17 @@ struct LayoutController {
     }
     
     var startButtonHorizontalPadding: CGFloat { 16 }
-    var startButtonBottomPadding: CGFloat { 10 }
+    var startButtonBottomPadding: CGFloat {
+        if isIPad {
+            return 50
+        } else if screenHeight < 770 {
+            return 10
+        } else if screenHeight < 860 {
+            return 10
+        } else {
+            return 10
+        }
+    }
     
     var startButtonTitleSize: CGFloat {
         isIPad ? 44 : 40

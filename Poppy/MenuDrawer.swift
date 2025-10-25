@@ -110,8 +110,7 @@ struct MenuDrawer: View {
                                         title: "Privacy Policy",
                                         theme: theme
                                     ) {
-                                        // TODO: Replace with your actual privacy policy URL before shipping
-                                        if let url = URL(string: "https://yourapp.com/privacy") {
+                                        if let url = URL(string: "https://poppygame.crd.co/") {
                                             UIApplication.shared.open(url)
                                         }
                                     }
