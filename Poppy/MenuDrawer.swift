@@ -246,7 +246,7 @@ struct CreditsSheet: View {
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundStyle(theme.textDark.opacity(0.6))
                         
-                        Text("Thank you for playing Poppy! Your support means everything.")
+                        Text("Thank you for playing Poppy! A special thank you goes out to my wife and my kids. Without you all, I wouldn't have been able to make this possible. Your support means everything. And thank you, the support of this app, for playing this game.")
                             .font(.system(size: 16, design: .rounded))
                             .foregroundStyle(theme.textDark)
                     }
