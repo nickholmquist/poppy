@@ -43,7 +43,6 @@ final class SoundManager {
             try audioSession.setCategory(.ambient, mode: .default)
             try audioSession.setActive(true)
         } catch {
-            print("Failed to configure audio session: \(error)")
         }
     }
     
@@ -55,7 +54,6 @@ final class SoundManager {
     
     private func preparePlayer(named: String, for player: inout AVAudioPlayer?) {
         guard let url = Bundle.main.url(forResource: named, withExtension: nil) else {
-            print("Sound file not found: \(named)")
             return
         }
         
@@ -64,7 +62,6 @@ final class SoundManager {
             player?.prepareToPlay()
             player?.volume = 1.0
         } catch {
-            print("Failed to load sound: \(error)")
         }
     }
     

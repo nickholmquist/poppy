@@ -88,8 +88,6 @@ final class StoreManager: NSObject, ObservableObject {
                 return p1Order < p2Order
             }
         } catch {
-            print("Failed to load products: \(error)")
-            purchaseError = "Unable to load store items"
         }
     }
     
@@ -176,7 +174,6 @@ final class StoreManager: NSObject, ObservableObject {
     func clearPurchases() {
         purchasedProductIDs.removeAll()
         UserDefaults.standard.removeObject(forKey: userDefaultsKey)
-        print("✅ All purchases cleared")
     }
     
     // MARK: - Transaction Listener
@@ -196,7 +193,6 @@ final class StoreManager: NSObject, ObservableObject {
                     
                     await transaction.finish()
                 } catch {
-                    print("Transaction verification failed: \(error)")
                 }
             }
         }

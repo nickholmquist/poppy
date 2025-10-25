@@ -246,9 +246,10 @@ struct CreditsSheet: View {
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundStyle(theme.textDark.opacity(0.6))
                         
-                        Text("Thank you for playing Poppy! A special thank you goes out to my wife and my kids. Without you all, I wouldn't have been able to make this possible. Your support means everything. And thank you, the support of this app, for playing this game.")
+                        Text("Thank you for playing Poppy! A special thank you goes out to my wife and my kids. Without you all, I wouldn't have been able to make this possible. Your support means everything.\n\nAnd thank YOU for playing my game. It means the world to me!")
                             .font(.system(size: 16, design: .rounded))
                             .foregroundStyle(theme.textDark)
+                            .lineSpacing(2)
                     }
                     
                     Spacer()
@@ -389,7 +390,6 @@ struct TipButton: View {
                 do {
                     try await store.purchase(product)
                 } catch {
-                    print("Purchase failed: \(error)")
                 }
             }
         }) {

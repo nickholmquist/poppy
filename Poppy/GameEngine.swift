@@ -89,7 +89,6 @@ final class GameEngine: ObservableObject {
             hapticEngine = try CHHapticEngine()
             try hapticEngine?.start()
         } catch {
-            print("Haptic engine creation error: \(error)")
         }
     }
 
