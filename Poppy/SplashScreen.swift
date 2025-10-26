@@ -19,7 +19,7 @@ struct SplashScreen: View {
             // Your full splash image with background and texture already included
             Image("splash_logo")
                 .resizable()
-                .scaledToFit()  // Fit entire image without cropping
+                .scaledToFill()  // Fill entire screen edge-to-edge
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea()
                 .scaleEffect(scale)
