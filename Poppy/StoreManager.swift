@@ -16,6 +16,8 @@ final class StoreManager: NSObject, ObservableObject {
     @Published private(set) var purchasedProductIDs = Set<String>()
     @Published var isPurchasing = false
     @Published var purchaseError: String?
+    @Published var showTipSuccess = false
+    @Published var tipSuccessMessage = ""
     
     // Product IDs - these must match what you create in App Store Connect
     enum ProductID {
@@ -121,10 +123,26 @@ final class StoreManager: NSObject, ObservableObject {
             let transaction = try checkVerified(verification)
             
             // For consumables (tips), just finish the transaction
-            if product.id.contains("tip") {
-                await transaction.finish()
-                return
-            }
+               if product.id.contains("tip") {
+                   await transaction.finish()
+                   
+                   // Show thank you message
+                   let tipSize = product.id.contains("small") ? "small" :
+                                 product.id.contains("medium") ? "medium" : "large"
+                   tipSuccessMessage = "Thank you for the \(tipSize) tip! ❤️"
+                   showTipSuccess = true
+                   
+                   // Success haptic
+                   UINotificationFeedbackGenerator().notificationOccurred(.success)
+                   
+                   // Auto-dismiss after 2.5 seconds
+                   Task {
+                       try? await Task.sleep(nanoseconds: 2_500_000_000)
+                       showTipSuccess = false
+                   }
+                   
+                   return
+               }
             
             // For non-consumables (themes), save and finish
             purchasedProductIDs.insert(transaction.productID)

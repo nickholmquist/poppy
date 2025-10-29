@@ -181,6 +181,19 @@ struct MenuDrawer: View {
                 }
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isOpen)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: store.showTipSuccess)
+            
+            // Tip success overlay
+            if store.showTipSuccess {
+                ZStack {
+                    Color.clear
+                    
+                    TipSuccessOverlay(theme: theme, message: store.tipSuccessMessage)
+                        .transition(.scale.combined(with: .opacity))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .zIndex(999)
+            }
         }
         .sheet(isPresented: $showingCredits) {
             CreditsSheet(theme: theme)
@@ -659,6 +672,40 @@ struct PurchaseButton: View {
         }
         .disabled(isPurchasing)
         .opacity(isPurchasing ? 0.6 : 1.0)
+    }
+}
+
+// MARK: - Tip Success Overlay
+
+struct TipSuccessOverlay: View {
+    let theme: Theme
+    let message: String
+    
+    @State private var scale: CGFloat = 0.8
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 60))
+                .foregroundStyle(Color.green)
+            
+            Text(message)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(theme.textDark)
+                .multilineTextAlignment(.center)
+        }
+        .padding(32)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(theme.bgTop)
+                .shadow(color: .black.opacity(0.3), radius: 20, y: 10)
+        )
+        .scaleEffect(scale)
+        .onAppear {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                scale = 1.0
+            }
+        }
     }
 }
 
