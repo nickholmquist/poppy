@@ -13,12 +13,12 @@ struct MenuDrawer: View {
     @Binding var isOpen: Bool
     @EnvironmentObject var themeStore: ThemeStore
     @EnvironmentObject var store: StoreManager
-    @EnvironmentObject var highs: HighscoreStore  // Need this for reset
+    @EnvironmentObject var highs: HighscoreStore
     
     // Settings states
     @State private var dragOffset: CGFloat = 0
     @State private var showingCredits = false
-    @State private var showingResetConfirmation = false  // NEW
+    @State private var showingResetConfirmation = false
     
     private let dismissThreshold: CGFloat = 200
     
@@ -70,18 +70,14 @@ struct MenuDrawer: View {
                                     )
                                 }
                                 
-                                // Tip Jar - no section title, just the content
+                                // Tip Jar
                                 TipJarView(theme: theme, store: store)
                                 
                                 // Themes Section
                                 MenuSection(title: "Themes", theme: theme) {
                                     ThemeGrid(
                                         theme: theme,
-                                        themeStore: themeStore,
-                                        store: store,
-                                        onLockedThemeTap: { _, _ in
-                                            // No-op - all themes unlocked
-                                        }
+                                        themeStore: themeStore
                                     )
                                 }
                                 
@@ -94,6 +90,7 @@ struct MenuDrawer: View {
                                     ) {
                                         showingResetConfirmation = true
                                     }
+                                    
                                     InfoButton(
                                         icon: "info.circle.fill",
                                         title: "Privacy Policy",
@@ -131,9 +128,7 @@ struct MenuDrawer: View {
                             .padding(.bottom, 40)
                         }
                         .safeAreaInset(edge: .bottom) {
-                            // Add bottom safe area padding
-                            Color.clear
-                                .frame(height: 0)
+                            Color.clear.frame(height: 0)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: geo.size.height * 0.85)
@@ -168,21 +163,17 @@ struct MenuDrawer: View {
                             }
                     )
                 }
+                
+                // Tip success overlay - CENTERED
+                if store.showTipSuccess {
+                    TipSuccessOverlay(theme: theme, message: store.tipSuccessMessage)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(.scale.combined(with: .opacity))
+                        .zIndex(999)
+                }
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isOpen)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: store.showTipSuccess)
-            
-            // Tip success overlay
-            if store.showTipSuccess {
-                ZStack {
-                    Color.clear
-                    
-                    TipSuccessOverlay(theme: theme, message: store.tipSuccessMessage)
-                        .transition(.scale.combined(with: .opacity))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .zIndex(999)
-            }
         }
         .sheet(isPresented: $showingCredits) {
             CreditsSheet(theme: theme)
@@ -205,6 +196,40 @@ struct MenuDrawer: View {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             isOpen = false
+        }
+    }
+}
+
+// MARK: - Tip Success Overlay
+
+struct TipSuccessOverlay: View {
+    let theme: Theme
+    let message: String
+    
+    @State private var scale: CGFloat = 0.8
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 60))
+                .foregroundStyle(Color.green)
+            
+            Text(message)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(theme.textDark)
+                .multilineTextAlignment(.center)
+        }
+        .padding(32)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(theme.bgTop)
+                .shadow(color: .black.opacity(0.3), radius: 20, y: 10)
+        )
+        .scaleEffect(scale)
+        .onAppear {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                scale = 1.0
+            }
         }
     }
 }
@@ -236,7 +261,7 @@ struct CreditsSheet: View {
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundStyle(theme.textDark.opacity(0.6))
                         
-                        Text("Nick Holmquist") //
+                        Text("Nick Holmquist")
                             .font(.system(size: 18, weight: .medium, design: .rounded))
                             .foregroundStyle(theme.textDark)
                     }
@@ -349,7 +374,6 @@ struct TipJarView: View {
             .padding(.top, 8)
             
             if tipProducts.isEmpty {
-                // Show placeholder when products aren't loaded
                 Text("Loading tip options...")
                     .font(.system(size: 13, design: .rounded))
                     .foregroundStyle(theme.textDark.opacity(0.5))
@@ -430,8 +454,6 @@ struct TipButton: View {
 struct ThemeGrid: View {
     let theme: Theme
     @ObservedObject var themeStore: ThemeStore
-    @ObservedObject var store: StoreManager
-    let onLockedThemeTap: (Theme, String) -> Void
     
     let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -444,19 +466,14 @@ struct ThemeGrid: View {
         LazyVGrid(columns: columns, spacing: 12) {
             ForEach(themeStore.themes.indices, id: \.self) { index in
                 let themeName = themeStore.names[index]
-                let isUnlocked = store.isThemeUnlocked(themeName)
                 
                 ThemeDot(
                     theme: themeStore.themes[index],
                     isSelected: themeStore.themes[index].accent == themeStore.current.accent,
-                    isLocked: !isUnlocked,
+                    isLocked: false,  // All themes unlocked
                     themeName: themeName,
                     onTap: {
-                        if isUnlocked {
-                            themeStore.select(themeStore.themes[index])
-                        } else {
-                            onLockedThemeTap(themeStore.themes[index], themeName)
-                        }
+                        themeStore.select(themeStore.themes[index])
                     },
                     drawerTheme: theme
                 )
@@ -556,148 +573,6 @@ struct InfoButton: View {
     }
 }
 
-// MARK: - Theme Purchase Sheet
-
-struct ThemePurchaseSheet: View {
-    let theme: Theme
-    let selectedTheme: Theme
-    let themeName: String
-    @ObservedObject var store: StoreManager
-    @Environment(\.dismiss) var dismiss
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            // Preview
-            VStack(spacing: 12) {
-                Text("Preview: \(themeName)")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(theme.textDark)
-                
-                Circle()
-                    .fill(selectedTheme.accent)
-                    .frame(width: 80, height: 80)
-                    .overlay(
-                        Circle()
-                            .stroke(theme.textDark.opacity(0.2), lineWidth: 2)
-                    )
-            }
-            .padding(.top, 30)
-            
-            Spacer()
-            
-            // Purchase options
-            VStack(spacing: 12) {
-                if let individualProduct = store.product(for: themeProductID) {
-                    PurchaseButton(
-                        title: "Unlock \(themeName)",
-                        subtitle: individualProduct.displayPrice,
-                        theme: theme,
-                        isPurchasing: store.isPurchasing
-                    ) {
-                        Task {
-                            try? await store.purchase(individualProduct)
-                            dismiss()
-                        }
-                    }
-                }
-                
-                if let bundleProduct = store.product(for: StoreManager.ProductID.allThemes) {
-                    PurchaseButton(
-                        title: "Unlock All Themes",
-                        subtitle: "\(bundleProduct.displayPrice) • Save $1",
-                        theme: theme,
-                        isPurchasing: store.isPurchasing,
-                        isProminent: true
-                    ) {
-                        Task {
-                            try? await store.purchase(bundleProduct)
-                            dismiss()
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 30)
-        }
-        .background(theme.bgTop)
-    }
-    
-    private var themeProductID: String {
-        switch themeName {
-        case "Citrus": return StoreManager.ProductID.citrusTheme
-        case "Beachglass": return StoreManager.ProductID.beachglassTheme
-        case "Memphis": return StoreManager.ProductID.memphisTheme
-        case "Minimal Light": return StoreManager.ProductID.minimalLightTheme
-        case "Minimal Dark": return StoreManager.ProductID.minimalDarkTheme
-        default: return ""
-        }
-    }
-}
-
-struct PurchaseButton: View {
-    let title: String
-    let subtitle: String
-    let theme: Theme
-    let isPurchasing: Bool
-    var isProminent: Bool = false
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Text(title)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                Text(subtitle)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .opacity(0.8)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isProminent ? theme.accent : theme.bgBottom)
-            )
-            .foregroundStyle(isProminent ? theme.textOnAccent : theme.textDark)
-        }
-        .disabled(isPurchasing)
-        .opacity(isPurchasing ? 0.6 : 1.0)
-    }
-}
-
-// MARK: - Tip Success Overlay
-
-struct TipSuccessOverlay: View {
-    let theme: Theme
-    let message: String
-    
-    @State private var scale: CGFloat = 0.8
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(Color.green)
-            
-            Text(message)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(theme.textDark)
-                .multilineTextAlignment(.center)
-        }
-        .padding(32)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(theme.bgTop)
-                .shadow(color: .black.opacity(0.3), radius: 20, y: 10)
-        )
-        .scaleEffect(scale)
-        .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                scale = 1.0
-            }
-        }
-    }
-}
-
 #Preview {
     @Previewable @State var isOpen = true
     
@@ -708,5 +583,6 @@ struct TipSuccessOverlay: View {
         MenuDrawer(theme: .daylight, isOpen: $isOpen)
             .environmentObject(ThemeStore())
             .environmentObject(StoreManager.preview)
+            .environmentObject(HighscoreStore())
     }
 }

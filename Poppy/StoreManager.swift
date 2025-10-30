@@ -2,7 +2,7 @@
 //  StoreManager.swift
 //  Poppy
 //
-//  Handles In-App Purchases for tips and theme unlocks
+//  Handles In-App Purchases for tips
 //
 
 import Foundation
@@ -26,17 +26,8 @@ final class StoreManager: NSObject, ObservableObject {
         static let mediumTip = "com.poppy.tip.medium"
         static let largeTip = "com.poppy.tip.large"
         
-        // Theme unlocks
-        static let citrusTheme = "com.poppy.theme.citrus"
-        static let beachglassTheme = "com.poppy.theme.beachglass"
-        static let memphisTheme = "com.poppy.theme.memphis"
-        static let minimalLightTheme = "com.poppy.theme.minimallight"
-        static let minimalDarkTheme = "com.poppy.theme.minimaldark"
-        static let allThemes = "com.poppy.themes.all"
-        
         static var allProductIDs: [String] {
-            [smallTip, mediumTip, largeTip, citrusTheme, beachglassTheme,
-             memphisTheme, minimalLightTheme, minimalDarkTheme, allThemes]
+            [smallTip, mediumTip, largeTip]
         }
     }
     
@@ -62,10 +53,7 @@ final class StoreManager: NSObject, ObservableObject {
     // Mock initializer for previews
     init(mock: Bool) {
         super.init()
-        if mock {
-            // Simulate having some themes unlocked for preview
-            purchasedProductIDs = [ProductID.citrusTheme]
-        }
+        // Mock mode - no products loaded
     }
     
     // Convenience for previews
@@ -83,13 +71,14 @@ final class StoreManager: NSObject, ObservableObject {
         do {
             let storeProducts = try await Product.products(for: ProductID.allProductIDs)
             
-            // Sort: tips first, then themes, then bundle
+            // Sort tips by size
             products = storeProducts.sorted { p1, p2 in
                 let p1Order = productOrder(p1.id)
                 let p2Order = productOrder(p2.id)
                 return p1Order < p2Order
             }
         } catch {
+            print("Failed to request products: \(error)")
         }
     }
     
@@ -98,12 +87,6 @@ final class StoreManager: NSObject, ObservableObject {
         case ProductID.smallTip: return 0
         case ProductID.mediumTip: return 1
         case ProductID.largeTip: return 2
-        case ProductID.citrusTheme: return 3
-        case ProductID.beachglassTheme: return 4
-        case ProductID.memphisTheme: return 5
-        case ProductID.minimalLightTheme: return 6
-        case ProductID.minimalDarkTheme: return 7
-        case ProductID.allThemes: return 8
         default: return 999
         }
     }
@@ -122,32 +105,23 @@ final class StoreManager: NSObject, ObservableObject {
         case .success(let verification):
             let transaction = try checkVerified(verification)
             
-            // For consumables (tips), just finish the transaction
-               if product.id.contains("tip") {
-                   await transaction.finish()
-                   
-                   // Show thank you message
-                   let tipSize = product.id.contains("small") ? "small" :
-                                 product.id.contains("medium") ? "medium" : "large"
-                   tipSuccessMessage = "Thank you for the \(tipSize) tip! ❤️"
-                   showTipSuccess = true
-                   
-                   // Success haptic
-                   UINotificationFeedbackGenerator().notificationOccurred(.success)
-                   
-                   // Auto-dismiss after 2.5 seconds
-                   Task {
-                       try? await Task.sleep(nanoseconds: 2_500_000_000)
-                       showTipSuccess = false
-                   }
-                   
-                   return
-               }
-            
-            // For non-consumables (themes), save and finish
-            purchasedProductIDs.insert(transaction.productID)
-            savePurchasedProducts()
+            // For consumables (tips), show thank you and finish
             await transaction.finish()
+            
+            // Show thank you message
+            let tipSize = product.id.contains("small") ? "small" :
+                          product.id.contains("medium") ? "medium" : "large"
+            tipSuccessMessage = "Thank you for the \(tipSize) tip! ❤️"
+            showTipSuccess = true
+            
+            // Success haptic
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            
+            // Auto-dismiss after 2.5 seconds
+            Task {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                showTipSuccess = false
+            }
             
         case .userCancelled:
             break
@@ -157,33 +131,6 @@ final class StoreManager: NSObject, ObservableObject {
             
         @unknown default:
             break
-        }
-    }
-    
-    // MARK: - Restore Purchases
-    
-    func restorePurchases() async {
-        isPurchasing = true
-        purchaseError = nil
-        
-        defer { isPurchasing = false }
-        
-        do {
-            try await AppStore.sync()
-            
-            // Reload current entitlements
-            var restoredIDs = Set<String>()
-            
-            for await result in Transaction.currentEntitlements {
-                let transaction = try checkVerified(result)
-                restoredIDs.insert(transaction.productID)
-            }
-            
-            purchasedProductIDs = restoredIDs
-            savePurchasedProducts()
-            
-        } catch {
-            purchaseError = "Failed to restore purchases"
         }
     }
     
@@ -202,15 +149,10 @@ final class StoreManager: NSObject, ObservableObject {
                 do {
                     let transaction = try self.checkVerified(result)
                     
-                    await MainActor.run {
-                        if !transaction.productID.contains("tip") {
-                            self.purchasedProductIDs.insert(transaction.productID)
-                            self.savePurchasedProducts()
-                        }
-                    }
-                    
+                    // For tips, just finish the transaction
                     await transaction.finish()
                 } catch {
+                    print("Transaction verification failed: \(error)")
                 }
             }
         }
@@ -240,22 +182,6 @@ final class StoreManager: NSObject, ObservableObject {
     }
     
     // MARK: - Helper Methods
-    
-    func isThemeUnlocked(_ themeName: String) -> Bool {
-        // All themes unlocked for initial release
-        return true
-    }
-    
-    private func themeToProductID(_ themeName: String) -> String {
-        switch themeName {
-        case "Citrus": return ProductID.citrusTheme
-        case "Beachglass": return ProductID.beachglassTheme
-        case "Memphis": return ProductID.memphisTheme
-        case "Minimal Light": return ProductID.minimalLightTheme
-        case "Minimal Dark": return ProductID.minimalDarkTheme
-        default: return ""
-        }
-    }
     
     func product(for id: String) -> Product? {
         products.first { $0.id == id }

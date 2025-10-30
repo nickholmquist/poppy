@@ -20,9 +20,6 @@ struct PoppyApp: App {
                 .environmentObject(themeStore)
                 .environmentObject(storeManager)
                 .onAppear {
-                    // Connect StoreManager to ThemeStore so it can check locks
-                    themeStore.setStoreManager(storeManager)
-                    
                     // Lock orientation to portrait
                     AppDelegate.orientationLock = .portrait
                 }
