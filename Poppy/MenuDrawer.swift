@@ -94,17 +94,6 @@ struct MenuDrawer: View {
                                     ) {
                                         showingResetConfirmation = true
                                     }
-                                    
-                                    InfoButton(
-                                        icon: "arrow.clockwise.circle.fill",
-                                        title: "Restore Purchases",
-                                        theme: theme
-                                    ) {
-                                        Task {
-                                            await store.restorePurchases()
-                                        }
-                                    }
-                                    
                                     InfoButton(
                                         icon: "info.circle.fill",
                                         title: "Privacy Policy",
