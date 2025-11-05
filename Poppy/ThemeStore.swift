@@ -13,13 +13,6 @@ final class ThemeStore: ObservableObject {
     
     let themes: [Theme] = [.daylight, .breeze, .meadow, .citrus, .sherbet, .beachglass, .twilight, .memphis, .minimalLight, .minimalDark]
     let names: [String] = ["Daylight", "Breeze", "Meadow", "Citrus", "Sherbet", "Beachglass", "Twilight", "Memphis", "Minimal Light", "Minimal Dark"]
-    
-    // Reference to StoreManager for checking locks
-    private var storeManager: StoreManager?
-    
-    func setStoreManager(_ manager: StoreManager) {
-        self.storeManager = manager
-    }
 
     func select(_ theme: Theme) {
         previous = current
@@ -32,26 +25,8 @@ final class ThemeStore: ObservableObject {
             $0.accent == current.accent
         }) else { return }
         
-        // Find next unlocked theme
-        var nextIndex = (currentIndex + 1) % themes.count
-        var attempts = 0
-        let maxAttempts = themes.count
-        
-        while attempts < maxAttempts {
-            let themeName = names[nextIndex]
-            
-            // Check if theme is unlocked
-            if let manager = storeManager, !manager.isThemeUnlocked(themeName) {
-                // Skip locked theme, try next
-                nextIndex = (nextIndex + 1) % themes.count
-                attempts += 1
-            } else {
-                // Found unlocked theme
-                select(themes[nextIndex])
-                return
-            }
-        }
-        
-        // Fallback - if all themes locked somehow, stay on current
+        // All themes are unlocked - just cycle to next
+        let nextIndex = (currentIndex + 1) % themes.count
+        select(themes[nextIndex])
     }
 }
