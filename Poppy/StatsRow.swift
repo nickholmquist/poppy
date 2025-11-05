@@ -18,6 +18,8 @@ struct StatsRow: View {
     @State private var celebrationFlash: Bool = false
     @State private var celebrationPulse: Bool = false
     @State private var urgencyFlash: Bool = false
+    @State private var timeMorphScale: CGFloat = 1.0
+    @State private var timeMorphBlur: CGFloat = 0
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -64,9 +66,28 @@ struct StatsRow: View {
                     )
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
+                    .scaleEffect(timeMorphScale)
+                    .blur(radius: timeMorphBlur)
                     .transaction { $0.animation = nil }
                     .contentShape(Rectangle())
-                    .onTapGesture { if !isRunning { onTimeTap() } }
+                    .onTapGesture {
+                        if !isRunning {
+                            // Morph animation: shrink and blur
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                timeMorphScale = 0.3
+                                timeMorphBlur = 8
+                            }
+                            
+                            // Call the tap handler
+                            onTimeTap()
+                            
+                            // Reset after picker appears
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                timeMorphScale = 1.0
+                                timeMorphBlur = 0
+                            }
+                        }
+                    }
                     .onChange(of: remainingSeconds) { _, newVal in
                         if newVal <= 5 && newVal > 0 && isRunning {
                             if !urgencyFlash {

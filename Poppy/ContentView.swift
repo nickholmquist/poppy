@@ -203,7 +203,7 @@ struct ContentView: View {
                     )
                 }
                 if showTimePicker {
-                    LiquidGlassTimePicker(
+                    RadialTimePicker(
                         theme: theme,
                         show: $showTimePicker,
                         selected: $selectedTime,
