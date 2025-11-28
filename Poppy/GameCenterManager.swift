@@ -8,6 +8,7 @@
 import Foundation
 import GameKit
 import SwiftUI
+import Combine
 
 @MainActor
 final class GameCenterManager: NSObject, ObservableObject {
@@ -169,7 +170,9 @@ final class GameCenterManager: NSObject, ObservableObject {
 // MARK: - GKGameCenterControllerDelegate
 
 extension GameCenterManager: GKGameCenterControllerDelegate {
-    nonisolated func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
-        gameCenterViewController.dismiss(animated: true)
+    func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
+        Task { @MainActor in
+            gameCenterViewController.dismiss(animated: true)
+        }
     }
 }

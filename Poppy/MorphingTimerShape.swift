@@ -2,14 +2,14 @@
 //  MorphingTimerShape.swift
 //  Poppy
 //
-//  Shape that morphs from horizontal bar to circular ring
+//  Shape that smoothly morphs from horizontal bar to circle
+//  Ends meet smoothly at top without flaring
 //
 
 import SwiftUI
 
 struct MorphingTimerShape: Shape {
-    // 0.0 = horizontal bar, 1.0 = circular ring
-    var morphProgress: CGFloat
+    var morphProgress: CGFloat  // 0.0 = bar, 1.0 = circle
     
     var animatableData: CGFloat {
         get { morphProgress }
@@ -18,27 +18,45 @@ struct MorphingTimerShape: Shape {
     
     func path(in rect: CGRect) -> Path {
         let width = rect.width
-        let height = rect.height
+        let centerX = rect.midX
+        let centerY = rect.midY
+        let radius = width / 2
         
-        // Interpolate the vertical scale: 0.0 = flat bar, 1.0 = full circle
-        // Use a minimum scale so the path never completely disappears
-        let verticalScale = 0.05 + (morphProgress * 0.95)
+        // Smooth curve needs lots of points
+        let pointCount = 400
         
-        // Calculate the ellipse dimensions
-        let ellipseWidth = width
-        let ellipseHeight = height * verticalScale
-        
-        // Center the ellipse
-        let ellipseRect = CGRect(
-            x: rect.midX - ellipseWidth / 2,
-            y: rect.midY - ellipseHeight / 2,
-            width: ellipseWidth,
-            height: ellipseHeight
-        )
-        
-        // Create an elliptical path
         var path = Path()
-        path.addEllipse(in: ellipseRect)
+        
+        for i in 0..<pointCount {
+            let t = CGFloat(i) / CGFloat(pointCount - 1)
+            
+            // BAR POSITION (horizontal line from left to right)
+            let barX = rect.minX + t * width
+            let barY = centerY
+            
+            // CIRCLE POSITION (counter-clockwise from top)
+            // Angle tuning: slightly less than 360° to prevent overlap/flare
+            // but close enough to look visually complete
+            let angleSpan: CGFloat = 359.85  // Very close to full circle
+            let startAngle: CGFloat = 270.075  // Start just right of top
+            let angleDegrees = startAngle - t * angleSpan
+            let angleRadians = angleDegrees * .pi / 180
+            
+            let circleX = centerX + radius * cos(angleRadians)
+            let circleY = centerY + radius * sin(angleRadians)
+            
+            // Simple linear interpolation - no tricks!
+            let x = barX + (circleX - barX) * morphProgress
+            let y = barY + (circleY - barY) * morphProgress
+            
+            let point = CGPoint(x: x, y: y)
+            
+            if i == 0 {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
         
         return path
     }

@@ -15,10 +15,19 @@ struct MenuDrawer: View {
     @EnvironmentObject var store: StoreManager
     @EnvironmentObject var highs: HighscoreStore
     
+    // Tutorial reset bindings - allows direct modification from menu
+    @Binding var tutorialResetCount: Int
+    @Binding var hasCompletedFirstGame: Bool
+    @Binding var hasCompletedFirstRound: Bool
+    @Binding var hasChangedTheme: Bool
+    @Binding var hasChangedTime: Bool
+    @Binding var hasOpenedMenu: Bool
+    
     // Settings states
     @State private var dragOffset: CGFloat = 0
     @State private var showingCredits = false
     @State private var showingResetConfirmation = false
+    @State private var isClosing = false  // NEW: tracks closing animation
     
     private let dismissThreshold: CGFloat = 200
     
@@ -38,12 +47,32 @@ struct MenuDrawer: View {
                 // Bottom sheet
                 if isOpen {
                     VStack(spacing: 0) {
-                        // Drag handle
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(theme.textDark.opacity(0.3))
-                            .frame(width: 40, height: 5)
-                            .padding(.top, 12)
-                            .padding(.bottom, 8)
+                        // Top bar with drag handle and X button
+                        ZStack {
+                            // Drag handle (centered)
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(theme.textDark.opacity(0.3))
+                                .frame(width: 40, height: 5)
+                            
+                            // X button (top-right)
+                            HStack {
+                                Spacer()
+                                Button(action: {
+                                    closeDrawer()
+                                }) {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundStyle(theme.textDark.opacity(0.6))
+                                        .frame(width: 32, height: 32)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.trailing, 16)
+                        }
+                        .frame(height: 32)
+                        .padding(.top, 8)
+                        .padding(.bottom, 8)
                         
                         ScrollView {
                             VStack(spacing: 22) {
@@ -54,7 +83,14 @@ struct MenuDrawer: View {
                                         title: "Haptics",
                                         isOn: Binding(
                                             get: { HapticsManager.shared.hapticsEnabled },
-                                            set: { HapticsManager.shared.hapticsEnabled = $0 }
+                                            set: { newValue in
+                                                HapticsManager.shared.hapticsEnabled = newValue
+                                                // Track setting toggle
+                                                AnalyticsManager.shared.trackSettingToggled(
+                                                    setting: "haptics",
+                                                    enabled: newValue
+                                                )
+                                            }
                                         ),
                                         theme: theme
                                     )
@@ -64,7 +100,14 @@ struct MenuDrawer: View {
                                         title: "Sound",
                                         isOn: Binding(
                                             get: { SoundManager.shared.soundEnabled },
-                                            set: { SoundManager.shared.soundEnabled = $0 }
+                                            set: { newValue in
+                                                SoundManager.shared.soundEnabled = newValue
+                                                // Track setting toggle
+                                                AnalyticsManager.shared.trackSettingToggled(
+                                                    setting: "sound",
+                                                    enabled: newValue
+                                                )
+                                            }
                                         ),
                                         theme: theme
                                     )
@@ -83,6 +126,15 @@ struct MenuDrawer: View {
                                 
                                 // Info Section
                                 MenuSection(title: "Info", theme: theme) {
+                                    // Game Center button - NEW
+                                    InfoButton(
+                                        icon: "gamecontroller.fill",
+                                        title: "Game Center",
+                                        theme: theme
+                                    ) {
+                                        GameCenterManager.shared.showLeaderboards()
+                                    }
+                                    
                                     InfoButton(
                                         icon: "arrow.triangle.2.circlepath",
                                         title: "Reset High Scores",
@@ -90,6 +142,8 @@ struct MenuDrawer: View {
                                     ) {
                                         showingResetConfirmation = true
                                     }
+                                    
+                                    
                                     
                                     InfoButton(
                                         icon: "info.circle.fill",
@@ -143,7 +197,7 @@ struct MenuDrawer: View {
                             .ignoresSafeArea(edges: .bottom)
                     )
                     .shadow(color: theme.shadow.opacity(0.3), radius: 15, y: -3)
-                    .offset(y: max(0, dragOffset))
+                    .offset(y: isClosing ? 1000 : max(0, dragOffset))  // Slide way down when closing
                     .transition(.move(edge: .bottom))
                     .gesture(
                         DragGesture()
@@ -191,11 +245,17 @@ struct MenuDrawer: View {
     
     private func closeDrawer() {
         HapticsManager.shared.light()
+        
+        // First animate drawer down off screen
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            dragOffset = 0
+            isClosing = true
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        
+        // Then remove it from view hierarchy
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             isOpen = false
+            isClosing = false
+            dragOffset = 0
         }
     }
 }
@@ -365,7 +425,7 @@ struct TipJarView: View {
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(theme.textDark)
                 
-                Text("Support the dev! 🎉")
+                Text("Support the dev! 💙")
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(theme.textDark.opacity(0.7))
             }
@@ -575,14 +635,29 @@ struct InfoButton: View {
 
 #Preview {
     @Previewable @State var isOpen = true
+    @Previewable @State var resetCount = 0
+    @Previewable @State var firstGame = false
+    @Previewable @State var firstRound = false
+    @Previewable @State var theme = false
+    @Previewable @State var time = false
+    @Previewable @State var menu = false
     
     ZStack {
         Color(hex: "#F9F6EC")
             .ignoresSafeArea()
         
-        MenuDrawer(theme: .daylight, isOpen: $isOpen)
-            .environmentObject(ThemeStore())
-            .environmentObject(StoreManager.preview)
-            .environmentObject(HighscoreStore())
+        MenuDrawer(
+            theme: .daylight,
+            isOpen: $isOpen,
+            tutorialResetCount: $resetCount,
+            hasCompletedFirstGame: $firstGame,
+            hasCompletedFirstRound: $firstRound,
+            hasChangedTheme: $theme,
+            hasChangedTime: $time,
+            hasOpenedMenu: $menu
+        )
+        .environmentObject(ThemeStore())
+        .environmentObject(StoreManager.preview)
+        .environmentObject(HighscoreStore())
     }
 }

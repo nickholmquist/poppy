@@ -22,6 +22,7 @@ final class GameEngine: ObservableObject {
     @Published var isCountingDown = false
     @Published var countdown: Int? = nil
     @Published var gameOver = false
+    @Published var cooldownActive = false  // NEW: Prevents immediate restart
 
     @Published var score = 0
     @Published var remaining: Double = 30
@@ -52,6 +53,7 @@ final class GameEngine: ObservableObject {
     
     // High score tracking
     @Published var isNewHighScore = false
+    @Published var highScoreFlash = false  // Temporary flash when crossing threshold
     private var highScoreThreshold: Int = 0
     
     // Last 5 seconds urgency - NEW
@@ -59,8 +61,20 @@ final class GameEngine: ObservableObject {
     private var lastHapticSecond: Int = -1
 
     // Round length
-    var roundLength: Int = 30 {
-        didSet { if !isRunning { remaining = Double(roundLength) } }
+    var roundLength: Int = 10 {
+        didSet {
+            if !isRunning {
+                remaining = Double(roundLength)
+                // Save the user's time preference
+                UserDefaults.standard.set(roundLength, forKey: "poppy.roundLength")
+            }
+        }
+    }
+    
+    // Time progress for bar/ring visualization
+    var timeProgress: Double {
+        guard roundLength > 0 else { return 0 }
+        return remaining / Double(roundLength)
     }
 
     // Timers
@@ -74,6 +88,13 @@ final class GameEngine: ObservableObject {
     // MARK: - Initialization
     
     init() {
+        // Load saved time preference (default to 10s)
+        let savedTime = UserDefaults.standard.integer(forKey: "poppy.roundLength")
+        if savedTime > 0 {
+            self.roundLength = savedTime
+            self.remaining = Double(savedTime)
+        }
+        
         setupHaptics()
     }
     
@@ -111,13 +132,13 @@ final class GameEngine: ObservableObject {
         // Cancel any prior async work
         stopTimers()
 
+        // Play countdown sound ONCE at the start
+        soundManager.play(.countdownStart)
+
         // Countdown loop on the main actor
         countdownTask = Task { [weak self] in
             guard let self else { return }
             while let c = self.countdown, c > 0 {
-                // Play countdown sound
-                self.soundManager.play(.countdown)
-                
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 // Task may be cancelled while sleeping
                 if Task.isCancelled { return }
@@ -135,6 +156,9 @@ final class GameEngine: ObservableObject {
         isRunning = true
         remaining = Double(roundLength)
         endTime = Date().addingTimeInterval(TimeInterval(roundLength))
+        
+        // Track game start
+        AnalyticsManager.shared.trackGameStart(duration: roundLength)
 
         seedActive()
 
@@ -182,9 +206,40 @@ final class GameEngine: ObservableObject {
 
     private func finishRound() {
         stopTimers()
+        
+        // Track game completion
+        AnalyticsManager.shared.trackGameComplete(
+            score: score,
+            duration: roundLength,
+            isNewHigh: isNewHighScore,
+            timeLimitSeconds: roundLength
+        )
+        
+        // Submit score to Game Center - NEW
+        GameCenterManager.shared.submitScore(score, for: roundLength)
+        
         withAnimation(.none) {
             isRunning = false
             popReady = false
+            isUrgent = false  // Reset urgency flag when round ends
+            lastHapticSecond = -1  // Reset haptic tracker
+            remaining = Double(roundLength)  // Reset time bar to full
+            resetBoard()  // Clear all active/pressed dots
+            cooldownActive = true  // NEW: Activate cooldown
+        }
+        
+        // Trigger bounce animation after clearing board
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                self.bounceAll += 1
+            }
+        }
+        
+        // Release cooldown after 1 second
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.none) {
+                self.cooldownActive = false
+            }
         }
     }
 
@@ -268,8 +323,8 @@ final class GameEngine: ObservableObject {
     func pressPop() {
         guard popReady else { return }
         
-        // Play pop all sound
-        soundManager.play(.popAll)
+        // Play pop up sound (when clearing the board)
+        soundManager.play(.popUp)
         
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         
@@ -389,10 +444,11 @@ final class GameEngine: ObservableObject {
             isCountingDown = false
             countdown = nil
             popReady = false
-            remaining = Double(roundLength)
+            remaining = Double(roundLength)  // Reset time bar to full
             isNewHighScore = false  // Reset high score indicator
             isUrgent = false  // Reset urgency flag
             lastHapticSecond = -1  // Reset haptic tracker
+            cooldownActive = false  // NEW: Reset cooldown
             resetBoard()
             // DON'T reset score here - let it persist until next start()
             
@@ -410,6 +466,21 @@ final class GameEngine: ObservableObject {
         // Check if we just crossed the high score threshold - NEW
         if !isNewHighScore && score > highScoreThreshold && highScoreThreshold > 0 {
             isNewHighScore = true
+            
+            // Trigger temporary flash
+            highScoreFlash = true
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 800_000_000) // 0.8 second flash
+                await MainActor.run {
+                    self?.highScoreFlash = false
+                }
+            }
+            
+            // Track high score achievement
+            AnalyticsManager.shared.trackHighScore(
+                score: score,
+                duration: roundLength
+            )
             
             // Play new high score sound
             soundManager.play(.newHigh)

@@ -1,82 +1,128 @@
-// DotSprite.swift
+//
+//  DotSprite.swift
+//  Poppy
+//
+//  Individual dot button with layered design and animations
+//
+//  SIZING: All dimensions come from LayoutController.swift
+//  Do not hardcode any sizes, spacing, or dimensions in this file.
+//
+
 import SwiftUI
 
 struct DotSprite: View {
     let theme: Theme
+    let layout: LayoutController
     let isActive: Bool     // lit target
     let isPressed: Bool    // pushed in
     let bounceID: Int      // Trigger for bounce animation
-    let idleFlashID: Int   // Trigger for idle tap flash - NEW
-
-    // Tweakables
-    private let glowOpacity: Double = 0.12
-    private let glowBlur: CGFloat   = 26
-
-    // Inner shadow for pressed - follows the bottom rim curve
-    private let innerOpacity: Double = 0.45
-    private let innerOffsetY: CGFloat = 8
-    private let innerBlur: CGFloat = 4
-
-    // Ground contact shadow - tight to the base, no vertical offset
-    private let groundShadowBlur: CGFloat = 4
-    private let groundShadowOpacity: Double = 0.30
-    
-    // Baseline alignment - pressed buttons need to sit lower to match raised buttons' rim
-    private let pressedBaselineOffset: CGFloat = 5
-    
-    // Tint opacity states
-    private let activeTintOpacity: Double = 0.95
-    private let inactiveTintOpacity: Double = 0.20
-    
-    // Idle state tracking for color flash
-    @State private var currentTintOpacity: Double = 0.15
+    let idleFlashID: Int   // Trigger for idle tap flash
     
     // Breathing animation state
     @State private var breathingIntensity: Double = 0.0
     @State private var breathingDelay: Double = 0.0
     
-    // Idle tap flash - NEW
+    // Idle tap flash
     @State private var idleFlash: Bool = false
+    
+    // Dynamic spacing - press down when tapped
+    private var currentSpacing: CGFloat {
+        isPressed ? 0 : -layout.dotLayerOffset
+    }
 
     var body: some View {
-        ZStack {
-            // Soft accent glow only when active AND not pressed
-            // Now pulses with breathing animation
-            Circle()
-                .fill(theme.accent)
-                .opacity(isActive && !isPressed ? (glowOpacity + breathingIntensity * 0.08) : 0)
-                .blur(radius: glowBlur)
-
-            // Base art - ALWAYS full opacity
-            Image(isPressed ? "button_Pressed" : "button_Raised")
-                .renderingMode(.original)
-                .resizable()
-                .scaledToFit()
-                // Pressed inner shadow polish
-                .overlay { pressedInnerShadow }
-                // Accent tint OVERLAY - masked to button shape
-                .overlay {
-                    if !isPressed {
-                        Image(isPressed ? "button_Pressed" : "button_Raised")
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundStyle(theme.accent)
-                            .opacity(idleFlash ? 0.7 : currentTintOpacity)  // Flash on idle tap
-                            .blendMode(.multiply)
+        GeometryReader { geo in
+            let dotSize = geo.size.width - (layout.dotPadding * 2)
+            let radius = dotSize / 2
+            let spacing = abs(currentSpacing)
+            
+            ZStack {
+                // Soft accent glow only when active AND not pressed
+                Circle()
+                    .fill(theme.accent)
+                    .opacity(isActive && !isPressed ? (layout.dotGlowOpacity + breathingIntensity * 0.08) : 0)
+                    .blur(radius: layout.dotGlowRadius)
+                    .padding(layout.dotPadding)
+                
+                // Bottom circle (darker) - shows accent tint ONLY when active
+                Circle()
+                    .fill(isActive ?
+                          Color(hex: "#656565") :   // We'll overlay accent on top
+                          Color(hex: "#7d7d7d"))    // Inactive: grey
+                    .overlay(
+                        // Active overlay - creates darker tinted shadow
+                        Group {
+                            if isActive {
+                                Circle()
+                                    .fill(theme.accent)
+                                    .opacity(0.4)  // Subtle tint over dark grey base
+                            }
+                        }
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(Color(hex: "#3a3a3a"), lineWidth: layout.dotStrokeWidth)
+                    )
+                    .shadow(color: theme.shadow.opacity(0.25), radius: 4, x: 0, y: 2)
+                    .padding(layout.dotPadding)
+                
+                // Cylinder side lines - connect top and bottom circles
+                if spacing > 0.5 {  // Only show when dot is raised
+                    // Scale inset values relative to dot size for iPad compatibility
+                    let baseInset: CGFloat = layout.dotStrokeWidth
+                    let additionalInset: CGFloat = dotSize * 0.06  // 6% of dot size for extra safety
+                    let lineInset = baseInset + additionalInset
+                    
+                    // Horizontal positioning - scale with dot size
+                    let horizontalAdjust: CGFloat = dotSize * 0.015
+                    
+                    // Calculate line height with proper insets
+                    let lineHeight = max(0, spacing - (lineInset * 2))
+                    
+                    // Only render if line height is meaningful
+                    if lineHeight > 0.5 {
+                        // Left vertical line - using Rectangle for clean rendering
+                        Rectangle()
+                            .fill(Color(hex: "#3a3a3a"))
+                            .frame(width: layout.dotStrokeWidth, height: lineHeight)
+                            .position(
+                                x: layout.dotPadding - horizontalAdjust,
+                                y: radius + layout.dotPadding + lineInset + (lineHeight / 2)
+                            )
+                        
+                        // Right vertical line - using Rectangle for clean rendering
+                        Rectangle()
+                            .fill(Color(hex: "#3a3a3a"))
+                            .frame(width: layout.dotStrokeWidth, height: lineHeight)
+                            .position(
+                                x: dotSize + layout.dotPadding - horizontalAdjust,
+                                y: radius + layout.dotPadding + lineInset + (lineHeight / 2)
+                            )
                     }
                 }
+                
+                // Top circle (lighter) - shows active/inactive/pressed states clearly
+                Circle()
+                    .fill(
+                        isPressed ? Color(hex: "#c0c0c0") :       // Pressed: darker grey
+                        (isActive || idleFlash) ? theme.accent :  // Active OR flashing: full bright accent
+                        Color(hex: "#d7d7d7")                     // Inactive: light grey
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(Color(hex: "#3a3a3a"), lineWidth: layout.dotStrokeWidth)
+                    )
+                    .padding(layout.dotPadding)
+                    .offset(y: currentSpacing)
+                    .animation(.easeOut(duration: 0.09), value: currentSpacing)
+            }
         }
-        // Offset pressed buttons down to align with raised buttons' baseline
-        .offset(y: isPressed ? pressedBaselineOffset : 0)
-        // bounce scale and tint management
+        // bounce scale management
         .modifier(BounceModifier(
+            layout: layout,
             bounceID: bounceID,
             isPressed: isPressed,
-            isActive: isActive,
-            currentTintOpacity: $currentTintOpacity,
-            activeTintOpacity: activeTintOpacity,
-            inactiveTintOpacity: inactiveTintOpacity
+            isActive: isActive
         ))
         .onAppear {
             // Random delay so dots don't sync
@@ -94,31 +140,6 @@ struct DotSprite: View {
             if newVal != oldVal && !isActive && !isPressed {
                 triggerIdleFlash()
             }
-        }
-    }
-
-    // MARK: Inner shadow overlay for pressed state
-    @ViewBuilder
-    private var pressedInnerShadow: some View {
-        if isPressed {
-            // Bottom rim shadow - follows the curve at the bottom edge
-            Ellipse()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.clear,
-                            Color.black.opacity(0.35),
-                            Color.black.opacity(0.15)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(maxHeight: 15)
-                .offset(y: 18)  // Position at the very bottom
-                .blur(radius: 3)
-                .clipShape(Circle())
-                .blendMode(.multiply)
         }
     }
     
@@ -151,14 +172,12 @@ struct DotSprite: View {
     }
 }
 
-// MARK: - Bounce and tint management
+// MARK: - Bounce management
 private struct BounceModifier: ViewModifier {
+    let layout: LayoutController
     let bounceID: Int
     let isPressed: Bool
     let isActive: Bool
-    @Binding var currentTintOpacity: Double
-    let activeTintOpacity: Double
-    let inactiveTintOpacity: Double
     
     @State private var scale: CGFloat = 1.0
     @State private var lastBounceID: Int = 0
@@ -166,47 +185,17 @@ private struct BounceModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .scaleEffect(scale)
-            .onAppear {
-                // Set initial tint opacity based on state
-                currentTintOpacity = isActive ? activeTintOpacity : inactiveTintOpacity
-            }
-            .onChange(of: isActive) { _, newActive in
-                // Only update tint if button is not in a pressed transition
-                if !isPressed {
-                    currentTintOpacity = newActive ? activeTintOpacity : inactiveTintOpacity
-                }
-            }
-            .onChange(of: isPressed) { oldVal, newVal in
-                // When unpressing, set the tint to match the new active state
-                if oldVal && !newVal {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        currentTintOpacity = isActive ? activeTintOpacity : inactiveTintOpacity
-                    }
-                }
-            }
             .onChange(of: bounceID) { _, newVal in
                 if newVal != lastBounceID && !isPressed {
                     lastBounceID = newVal
                     performPopBounce()
-                    // No tint flash here - bounceAll and bounceIndividual are combined
-                    // so we can't distinguish idle taps from POP
                 }
             }
             .onChange(of: isPressed) { oldVal, newVal in
-                if newVal {
-                    // Press down
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                        scale = 0.85
-                    }
-                } else if oldVal && !newVal {
-                    // Release - quick bounce back
+                if !newVal && oldVal {
+                    // Release - bounce back after slight delay
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                         performPopBounce()
-                    }
-                    
-                    // After releasing, smoothly transition tint to match active state
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        currentTintOpacity = isActive ? activeTintOpacity : inactiveTintOpacity
                     }
                 }
             }

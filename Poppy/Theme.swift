@@ -43,33 +43,7 @@ extension Theme {
         bgBottom:   hex("#E6F4FF")
     )
     
-    // 2) Breeze
-    static let breeze = Theme(
-        accent:     hex("#7AC8FF"),
-        text:       Color(red: 0.10, green: 0.12, blue: 0.14),
-        textDark:   Color(red: 0.10, green: 0.12, blue: 0.14),
-        textOnAccent: Color(red: 0.10, green: 0.12, blue: 0.14),
-        buttonInactive: hex("#D5DBE0"),
-        shadow:     .black.opacity(0.18),
-        stroke:     .black.opacity(0.10),
-        bgTop:      hex("#CDEBFF"),
-        bgBottom:   hex("#F4FBFF")
-    )
-    
-    // 3) Meadow — night vibe
-    static let meadow = Theme(
-        accent:     hex("#FFB86B"),                  // warm peach card/button
-        text:       hex("#F0F6F2"),                  // light ink on dark page
-        textDark:   hex("#F0F6F2"),                  // keep equal to text for now
-        textOnAccent: hex("#163A2E"),                // deep pine on yellow accent
-        buttonInactive: hex("#3A4A44"),
-        shadow:     .black.opacity(0.55),
-        stroke:     .black.opacity(0.34),
-        bgTop:      hex("#0F211B"),                  // deep pine
-        bgBottom:   hex("#1E3C32")                   // dark teal green
-    )
-    
-    // 4) Sherbet
+    // 2) Sherbet
     static let sherbet = Theme(
         accent:     hex("#E879F9"),
         text:       Color(red: 0.10, green: 0.12, blue: 0.14),
@@ -82,20 +56,20 @@ extension Theme {
         bgBottom:   hex("#FFE4F1")
     )
     
-    // 5) Beachglass — slightly darker day
-    static let beachglass = Theme(
-        accent:     hex("#D46E79"),
-        text:       Color(red: 0.10, green: 0.12, blue: 0.14),
-        textDark:   Color(red: 0.10, green: 0.12, blue: 0.14),
-        textOnAccent: Color(red: 0.10, green: 0.12, blue: 0.14),
-        buttonInactive: hex("#CFE3DD"),
+    // 3) Sunset
+    static let sunset = Theme(
+        accent:     hex("#FF8B7B"),
+        text:       hex("#5A3028"),
+        textDark:   hex("#5A3028"),
+        textOnAccent: hex("#2A1810"),
+        buttonInactive: hex("#E5C4BC"),
         shadow:     .black.opacity(0.20),
         stroke:     .black.opacity(0.12),
-        bgTop:      hex("#64B887"),
-        bgBottom:   hex("#61B383")
+        bgTop:      hex("#FFE8E1"),
+        bgBottom:   hex("#FFB5A7")
     )
     
-    // 6) Citrus — night vibe
+    // 4) Citrus
     static let citrus = Theme(
         accent:     hex("#FF6B9D"),  // Hot pink/coral
         text:       hex("#2A1810"),  // Deep brown
@@ -108,7 +82,59 @@ extension Theme {
         bgBottom:   hex("#FF9A56")   // Tangerine orange
     )
     
-    // 7) Ember — night vibe with orange and charcoal
+    // 5) Ocean
+    static let ocean = Theme(
+        accent:     hex("#2D9CDB"),
+        text:       hex("#B3E5FC"),
+        textDark:   hex("#B3E5FC"),
+        textOnAccent: hex("#0A1929"),
+        buttonInactive: hex("#1E3A4F"),
+        shadow:     .black.opacity(0.55),
+        stroke:     .black.opacity(0.35),
+        bgTop:      hex("#0A1929"),
+        bgBottom:   hex("#1A4E66")
+    )
+    
+    // 6) Garden (renamed & toned down from Beachglass)
+    static let garden = Theme(
+        accent:     hex("#C97B87"),  // Softer dusty rose
+        text:       Color(red: 0.10, green: 0.12, blue: 0.14),
+        textDark:   Color(red: 0.10, green: 0.12, blue: 0.14),
+        textOnAccent: Color(red: 0.10, green: 0.12, blue: 0.14),
+        buttonInactive: hex("#D4E5DC"),
+        shadow:     .black.opacity(0.18),
+        stroke:     .black.opacity(0.10),
+        bgTop:      hex("#D4E8DD"),  // Softer sage
+        bgBottom:   hex("#B8D9C6")   // Softer sage-mint
+    )
+    
+    // 7) Forest - DARKER TEXT
+    static let forest = Theme(
+        accent:     hex("#52C37E"),
+        text:       hex("#0D3818"),  // Much darker forest green
+        textDark:   hex("#0D3818"),
+        textOnAccent: hex("#0D3818"),
+        buttonInactive: hex("#B8D8BE"),
+        shadow:     .black.opacity(0.18),
+        stroke:     .black.opacity(0.12),
+        bgTop:      hex("#E8F5E9"),
+        bgBottom:   hex("#A5D6A7")
+    )
+    
+    // 8) Meadow
+    static let meadow = Theme(
+        accent:     hex("#FFB86B"),                  // warm peach card/button
+        text:       hex("#F0F6F2"),                  // light ink on dark page
+        textDark:   hex("#F0F6F2"),                  // keep equal to text for now
+        textOnAccent: hex("#163A2E"),                // deep pine on yellow accent
+        buttonInactive: hex("#3A4A44"),
+        shadow:     .black.opacity(0.55),
+        stroke:     .black.opacity(0.34),
+        bgTop:      hex("#0F211B"),                  // deep pine
+        bgBottom:   hex("#1E3C32")                   // dark teal green
+    )
+    
+    // 9) Twilight
     static let twilight = Theme(
         accent:     hex("#A78BFA"),  // Soft lavender
         text:       hex("#E8E4F3"),  // Light purple-grey
@@ -120,17 +146,21 @@ extension Theme {
         bgTop:      hex("#000000"),  // Deep purple-navy
         bgBottom:   hex("#0A0A0A")   // Rich purple
     )
+    
+    // 10) Memphis Pastel
     static let memphis = Theme(
-        accent:     hex("#00CFC1"),  // Teal
-        text:       hex("#1A1A2E"),  // Deep purple-navy
-        textDark:   hex("#1A1A2E"),
-        textOnAccent: hex("#1A1A2E"),
-        buttonInactive: hex("#D4B5F2"),  // Light purple
-        shadow:     .black.opacity(0.20),
-        stroke:     .black.opacity(0.15),
-        bgTop:      hex("#9D4EDD"),  // Purple
-        bgBottom:   hex("#FFD60A")   // Yellow
+        accent:     hex("#7DD3C0"),  // Soft mint
+        text:       hex("#5A3D6E"),  // Deep purple-brown
+        textDark:   hex("#5A3D6E"),
+        textOnAccent: hex("#2A1A35"),  // Very dark purple
+        buttonInactive: hex("#D4C5E0"),  // Light lavender
+        shadow:     .black.opacity(0.18),
+        stroke:     .black.opacity(0.12),
+        bgTop:      hex("#E8D4F8"),  // Soft lavender
+        bgBottom:   hex("#FFE8B3")   // Soft butter yellow
     )
+    
+    // 11) Minimal Light
     static let minimalLight = Theme(
         accent:     hex("#E8D5B5"),  // Warm cream
         text:       hex("#2C2C2C"),
@@ -142,6 +172,8 @@ extension Theme {
         bgTop:      hex("#FAFAFA"),
         bgBottom:   hex("#F0F0F0")
     )
+    
+    // 12) Minimal Dark
     static let minimalDark = Theme(
         accent:     hex("#DC3545"),  // Deep red
         text:       hex("#FFFFFF"),

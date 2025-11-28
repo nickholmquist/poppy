@@ -18,8 +18,10 @@ final class AnalyticsManager {
     
     private func setupPostHog() {
         // Initialize PostHog with your project API key and host
-        let config = PostHogConfig(apiKey: "YOUR_POSTHOG_API_KEY")
-        config.host = "https://us.i.posthog.com" // or your self-hosted instance
+        let config = PostHogConfig(
+            apiKey: "phc_jhROIvjJ9p4uNAV0mLe074DFMxdlIj0wjew0bTBZehE",
+            host: "https://us.i.posthog.com"
+        )
         
         // Enable crash reporting
         config.captureApplicationLifecycleEvents = true
@@ -132,6 +134,40 @@ final class AnalyticsManager {
         PostHogSDK.shared.capture("session_started")
     }
     
+    // MARK: - Game Center Events
+    
+    func trackGameCenterAuthenticated(playerID: String) {
+        PostHogSDK.shared.capture(
+            "game_center_authenticated",
+            properties: [
+                "player_id": playerID
+            ]
+        )
+    }
+    
+    func trackLeaderboardSubmission(score: Int, duration: Int) {
+        PostHogSDK.shared.capture(
+            "leaderboard_submission",
+            properties: [
+                "score": score,
+                "duration_seconds": duration
+            ]
+        )
+    }
+    
+    func trackLeaderboardViewed(duration: Int? = nil) {
+        var properties: [String: Any] = [:]
+        
+        if let duration = duration {
+            properties["duration_seconds"] = duration
+        }
+        
+        PostHogSDK.shared.capture(
+            "leaderboard_viewed",
+            properties: properties
+        )
+    }
+    
     // MARK: - User Properties
     
     func updateUserProperties(
@@ -151,8 +187,9 @@ final class AnalyticsManager {
             properties["favorite_theme"] = theme
         }
         
+        // Set properties for current user
         PostHogSDK.shared.identify(
-            distinctId: PostHogSDK.shared.getDistinctId(),
+            PostHogSDK.shared.getDistinctId(),
             userProperties: properties
         )
     }

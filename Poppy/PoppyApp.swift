@@ -11,7 +11,8 @@ struct PoppyApp: App {
     @StateObject private var highs = HighscoreStore()
     @StateObject private var themeStore = ThemeStore()
     @StateObject private var storeManager = StoreManager()
-    @State private var showSplash = true
+    @StateObject private var gameCenterManager = GameCenterManager.shared  // NEW
+    @State private var showBusinessSplash = true
 
     var body: some Scene {
         WindowGroup {
@@ -20,12 +21,18 @@ struct PoppyApp: App {
                 .environmentObject(themeStore)
                 .environmentObject(storeManager)
                 .onAppear {
+                    // Track app launch and session
+                    AnalyticsManager.shared.trackAppLaunch()
+                    AnalyticsManager.shared.trackSessionStart()
+                    
                     // Lock orientation to portrait
                     AppDelegate.orientationLock = .portrait
                 }
                 .overlay {
-                    if showSplash {
-                        SplashScreen(isActive: $showSplash)
+                    if showBusinessSplash {
+                        BusinessSplashView(onComplete: {
+                            showBusinessSplash = false
+                        })
                     }
                 }
         }

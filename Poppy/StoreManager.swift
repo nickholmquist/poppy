@@ -111,7 +111,14 @@ final class StoreManager: NSObject, ObservableObject {
             // Show thank you message
             let tipSize = product.id.contains("small") ? "small" :
                           product.id.contains("medium") ? "medium" : "large"
-            tipSuccessMessage = "Thank you for the \(tipSize) tip! ❤️"
+            
+            // Track tip jar purchase
+            AnalyticsManager.shared.trackTipJarPurchase(
+                tier: tipSize,
+                amount: product.displayPrice
+            )
+            
+            tipSuccessMessage = "Thank you for the \(tipSize) tip! â¤ï¸"
             showTipSuccess = true
             
             // Success haptic

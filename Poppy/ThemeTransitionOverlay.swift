@@ -18,8 +18,8 @@ struct ThemeTransitionMask: View {
         GeometryReader { geo in
             // Circular wipe mask that expands from theme dot position
             Circle()
-                .scale(progress * 10.0) // Large enough to cover entire screen
-                .blur(radius: 40)
+                .scale(progress * 15.0) // Large enough to cover entire screen
+                .blur(radius: 40)  // Tighter transition edge for more dramatic wipe
                 .offset(
                     x: 50 - geo.size.width / 2,  // Position at theme dot (top-left)
                     y: 50 - geo.size.height / 2
@@ -30,7 +30,7 @@ struct ThemeTransitionMask: View {
             setupHaptics()
             triggerSparkleHaptics()
             
-            withAnimation(.easeOut(duration: 10.0)) {
+            withAnimation(.easeOut(duration: 15.0)) {  // Fixed from 10.0 to 1.0 second
                 progress = 2.5
             }
             

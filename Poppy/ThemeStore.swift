@@ -11,8 +11,35 @@ final class ThemeStore: ObservableObject {
     @Published var current: Theme = .daylight
     @Published var previous: Theme? = nil
     
-    let themes: [Theme] = [.daylight, .breeze, .meadow, .citrus, .sherbet, .beachglass, .twilight, .memphis, .minimalLight, .minimalDark]
-    let names: [String] = ["Daylight", "Breeze", "Meadow", "Citrus", "Sherbet", "Beachglass", "Twilight", "Memphis", "Minimal Light", "Minimal Dark"]
+    let themes: [Theme] = [
+        .daylight,
+        .sherbet,
+        .sunset,
+        .citrus,
+        .ocean,
+        .garden,
+        .forest,
+        .meadow,
+        .twilight,
+        .memphis,
+        .minimalLight,
+        .minimalDark
+    ]
+    
+    let names: [String] = [
+        "Daylight",
+        "Sherbet",
+        "Sunset",
+        "Citrus",
+        "Ocean",
+        "Garden",
+        "Forest",
+        "Meadow",
+        "Twilight",
+        "Memphis",
+        "Minimal Light",
+        "Minimal Dark"
+    ]
 
     func select(_ theme: Theme) {
         previous = current

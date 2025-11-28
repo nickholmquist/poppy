@@ -10,7 +10,7 @@ import SwiftUI
 struct BusinessSplashView: View {
     var onComplete: () -> Void
     
-    @State private var backgroundOpacity: Double = 0
+    @State private var backgroundOpacity: Double = 1.0  // Start at full opacity!
     @State private var logoOpacity: Double = 0
     @State private var logoScale: CGFloat = 0.85
     
@@ -55,12 +55,8 @@ struct BusinessSplashView: View {
     }
     
     private func animateIn() {
-        // Background fades in quickly
-        withAnimation(.easeOut(duration: 0.4)) {
-            backgroundOpacity = 1.0
-        }
-        
-        // Logo animates in after slight delay with scale + fade
+        // Background is already visible (starts at opacity 1.0)
+        // Just animate the logo in
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             withAnimation(.easeOut(duration: 0.4)) {
                 logoOpacity = 1.0

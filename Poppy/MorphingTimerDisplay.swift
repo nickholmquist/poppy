@@ -2,7 +2,10 @@
 //  MorphingTimerDisplay.swift
 //  Poppy
 //
-//  Unified timer display that morphs from bar to ring
+//  Timer display with smooth morphing animation from bar to ring
+//
+//  ⚠️ SIZING: All dimensions come from LayoutController.swift
+//  Do not hardcode any sizes, spacing, or dimensions in this file.
 //
 
 import SwiftUI
@@ -10,9 +13,9 @@ import SwiftUI
 struct MorphingTimerDisplay: View {
     let theme: Theme
     let layout: LayoutController
-    let progress: Double              // 0.0 (empty) to 1.0 (full)
-    let isExpanded: Bool              // true = bar, false = ring
-    let isUrgent: Bool                // true when <5 seconds
+    let progress: Double       // 0.0 (empty) to 1.0 (full)
+    let isExpanded: Bool       // true = bar, false = ring
+    let isUrgent: Bool         // true when <5 seconds
     
     @State private var glowIntensity: CGFloat = 1.0
     
@@ -25,8 +28,8 @@ struct MorphingTimerDisplay: View {
         ZStack {
             // Glow effect when urgent (only visible in ring mode)
             if isUrgent && !isExpanded {
-                MorphingTimerShape(morphProgress: morphProgress)
-                    .trim(from: 0, to: progress * 0.925) // Match ring trim (30° gap)
+                MorphingTimerShape(morphProgress: 1.0)
+                    .trim(from: 0, to: progress)
                     .stroke(
                         theme.accent,
                         style: StrokeStyle(
@@ -36,12 +39,11 @@ struct MorphingTimerDisplay: View {
                     )
                     .blur(radius: 12 * glowIntensity)
                     .opacity(0.6 * glowIntensity)
-                    .rotationEffect(.degrees(-90))
             }
             
             // Main morphing timer
             MorphingTimerShape(morphProgress: morphProgress)
-                .trim(from: 0, to: isExpanded ? progress : (progress * 0.925))
+                .trim(from: 0, to: progress)
                 .stroke(
                     theme.accent,
                     style: StrokeStyle(
@@ -49,8 +51,8 @@ struct MorphingTimerDisplay: View {
                         lineCap: .round
                     )
                 )
-                .rotationEffect(.degrees(isExpanded ? 0 : -90))
-                .animation(.spring(response: 0.5, dampingFraction: 0.75), value: isExpanded)
+                // SMOOTH easeInOut animation - NO SPRING BOUNCE
+                .animation(.easeInOut(duration: 0.5), value: morphProgress)
         }
         .frame(
             width: isExpanded ? layout.progressBarWidth : layout.ringDiameter,
@@ -70,7 +72,7 @@ struct MorphingTimerDisplay: View {
         }
     }
     
-    // MARK: - Urgency Pulse Animation
+    // MARK: - Urgency Pulse
     
     private func startUrgencyPulse() {
         withAnimation(
@@ -90,7 +92,7 @@ struct MorphingTimerDisplay: View {
 
 // MARK: - Previews
 
-#Preview("Morphing - Bar to Ring") {
+#Preview("Morphing Animation") {
     struct MorphTest: View {
         @State private var isExpanded = true
         @State private var progress: Double = 0.6
@@ -114,7 +116,7 @@ struct MorphingTimerDisplay: View {
                         
                         VStack(spacing: 16) {
                             Button("Toggle Shape") {
-                                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                                withAnimation {
                                     isExpanded.toggle()
                                 }
                             }
@@ -135,7 +137,7 @@ struct MorphingTimerDisplay: View {
     return MorphTest()
 }
 
-#Preview("Morphing - Urgent State") {
+#Preview("Urgent State") {
     GeometryReader { geo in
         let layout = LayoutController(geo)
         

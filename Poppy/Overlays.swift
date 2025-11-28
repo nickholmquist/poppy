@@ -52,7 +52,7 @@ struct GameOverOverlay: View {
                     theme: theme,
                     fill: theme.textOnAccent,
                     textColor: .white,
-                    height: 120,
+                    height: 90,
                     corner: 20,
                     font: .system(size: 35, weight: .black, design: .rounded)
                 )

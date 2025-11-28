@@ -2,6 +2,11 @@
 //  BoardView.swift
 //  Poppy
 //
+//  10-dot grid layout with 3-4-3 pattern
+//
+//  ⚠️ SIZING: All dimensions come from LayoutController.swift
+//  Do not hardcode any sizes, spacing, or dimensions in this file.
+//
 
 import SwiftUI
 
@@ -64,6 +69,7 @@ struct BoardView: View {
 
                             DotSprite(
                                 theme: theme,
+                                layout: layout,
                                 isActive: isActive,
                                 isPressed: isPressed,
                                 bounceID: bounceID,
