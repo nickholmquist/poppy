@@ -150,7 +150,7 @@ struct MenuDrawer: View {
                                         title: "Privacy Policy",
                                         theme: theme
                                     ) {
-                                        if let url = URL(string: "https://poppygame.crd.co/") {
+                                        if let url = URL(string: "https://islandtwigstudios.com/#policies") {
                                             UIApplication.shared.open(url)
                                         }
                                     }
