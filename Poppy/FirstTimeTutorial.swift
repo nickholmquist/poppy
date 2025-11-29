@@ -82,71 +82,121 @@ struct SpotlightCutout: Shape {
     }
 }
 
-// MARK: - Tutorial Message (Positioned Relative to Cutout)
+// MARK: - Tutorial Message (Arrow locked to cutout, message separate)
 
 struct TutorialMessage: View {
     let theme: Theme
     let step: TutorialStep
-    let cutoutRect: CGRect  // The cutout rect we're pointing at
+    let cutoutRect: CGRect
     let screenSize: CGSize
     
     @State private var pulseScale: CGFloat = 1.0
     
-    // Determine if message should appear above or below cutout
-    private var showAboveTarget: Bool {
-        cutoutRect.midY > screenSize.height / 2
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
     }
     
     private var messageFontSize: CGFloat {
-        UIDevice.current.userInterfaceIdiom == .pad ? 24 : 20
+        isIPad ? 24 : 20
+    }
+    
+    private let arrowSize: CGFloat = 34
+    private let arrowToMessageGap: CGFloat = 10
+    
+    // Different gaps for different steps AND devices
+    private var arrowToCutoutGap: CGFloat {
+        if step == .tapStart {
+            return isIPad ? 30 : 60  // Space above START button
+        } else {
+            return isIPad ? -20 : -50  // Space below top bar elements
+        }
     }
     
     var body: some View {
-        VStack(spacing: 6) {
-            if showAboveTarget {
-                // Message first, then arrow pointing down
-                messageBubble
-                
-                Image(systemName: "arrowtriangle.down.fill")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(theme.accent)
-                    .scaleEffect(pulseScale)
-                    .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
-                    .shadow(color: theme.accent.opacity(0.6), radius: 12, y: 0)
-            } else {
-                // Arrow pointing up first, then message
-                // Arrow should be positioned over the cutout
-                HStack {
-                    if step == .openMenu {
-                        Spacer()
-                    }
-                    
-                    Image(systemName: "arrowtriangle.up.fill")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(theme.accent)
-                        .scaleEffect(pulseScale)
-                        .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
-                        .shadow(color: theme.accent.opacity(0.6), radius: 12, y: 0)
-                    
-                    if step == .changeTheme {
-                        Spacer()
-                    }
-                }
-                .frame(width: messageWidth)
-                
-                messageBubble
+        ZStack {
+            // Arrow - locked to cutout
+            arrowView
+                .position(x: arrowX, y: arrowY)
+            
+            // Message - positioned based on alignment
+            messageBubble
+                .position(x: messageX, y: messageY)
+        }
+        .onAppear {
+            withAnimation(
+                .easeInOut(duration: 0.9)
+                .repeatForever(autoreverses: true)
+            ) {
+                pulseScale = 1.2
             }
         }
-        .fixedSize()  // Let VStack size to its content
-        .position(x: xPosition, y: yPosition)
     }
     
-    // Estimated message width for arrow alignment
-    private var messageWidth: CGFloat {
-        return min(CGFloat(step.message.count) * (messageFontSize * 0.55) + 48, 380)
+    // MARK: - Arrow Position (locked to cutout)
+    
+    private var arrowX: CGFloat {
+        cutoutRect.midX
+    }
+    
+    private var arrowY: CGFloat {
+        if step == .tapStart {
+            // Arrow above cutout, pointing down
+            return cutoutRect.minY - arrowToCutoutGap - arrowSize/2
+        } else {
+            // Arrow below cutout, pointing up
+            return cutoutRect.maxY + arrowToCutoutGap + arrowSize/2
+        }
+    }
+    
+    // MARK: - Message Position
+    
+    private var messageX: CGFloat {
+        switch step {
+        case .tapStart, .changeTime:
+            // Centered under/over arrow
+            return cutoutRect.midX
+        case .changeTheme:
+            // Message's left edge aligns with arrow's left edge
+            let arrowLeftEdge = cutoutRect.midX - arrowSize/2
+            return arrowLeftEdge + estimatedMessageWidth/2
+        case .openMenu:
+            // Message's right edge aligns with arrow's right edge
+            let arrowRightEdge = cutoutRect.midX + arrowSize/2
+            return arrowRightEdge - estimatedMessageWidth/2
+        }
+    }
+    
+    private var messageY: CGFloat {
+        if step == .tapStart {
+            // Message above arrow
+            return arrowY - arrowSize/2 - arrowToMessageGap - estimatedMessageHeight/2
+        } else {
+            // Message below arrow
+            return arrowY + arrowSize/2 + arrowToMessageGap + estimatedMessageHeight/2
+        }
+    }
+    
+    private var estimatedMessageWidth: CGFloat {
+        min(CGFloat(step.message.count) * (messageFontSize * 0.52) + 48, 340)
+    }
+    
+    private var estimatedMessageHeight: CGFloat {
+        messageFontSize + 32
+    }
+    
+    // MARK: - Arrow View
+    
+    private var arrowView: some View {
+        Image(systemName: step == .tapStart ? "arrowtriangle.down.fill" : "arrowtriangle.up.fill")
+            .font(.system(size: arrowSize, weight: .bold))
+            .foregroundStyle(theme.accent)
+            .scaleEffect(pulseScale)
+            .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
+            .shadow(color: theme.accent.opacity(0.6), radius: 12, y: 0)
     }
     
     // MARK: - Message Bubble
+    
     private var messageBubble: some View {
         Text(step.message)
             .font(.system(size: messageFontSize, weight: .bold, design: .rounded))
@@ -163,56 +213,6 @@ struct TutorialMessage: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(.white.opacity(0.4), lineWidth: 2.5)
             )
-            .onAppear {
-                withAnimation(
-                    .easeInOut(duration: 0.9)
-                    .repeatForever(autoreverses: true)
-                ) {
-                    pulseScale = 1.2
-                }
-            }
-    }
-    
-    // MARK: - Positioning
-    
-    private var xPosition: CGFloat {
-        switch step {
-        case .tapStart:
-            // Centered on screen
-            return screenSize.width / 2
-        case .changeTheme:
-            // Message aligned LEFT - arrow will be on left side pointing at theme button
-            // Position so left edge of message is near left edge with padding
-            return messageWidth / 2 + 20
-        case .changeTime:
-            // Centered on screen (Set Time is in center)
-            return screenSize.width / 2
-        case .openMenu:
-            // Message aligned RIGHT - arrow will be on right side pointing at menu button
-            // Position so right edge of message is near right edge with padding
-            return screenSize.width - messageWidth / 2 - 20
-        }
-    }
-    
-    private var yPosition: CGFloat {
-        // VStack height estimate - tuned to position arrow tip just above/below cutout
-        let vstackHeight: CGFloat = 130
-        
-        if showAboveTarget {
-            // Position CENTER of VStack so that BOTTOM is at cutout top - 4pt gap
-            return cutoutRect.minY - 4 - vstackHeight / 2
-        } else {
-            // Position CENTER of VStack so that TOP is at cutout bottom + 4pt gap
-            return cutoutRect.maxY + 4 + vstackHeight / 2
-        }
-    }
-}
-
-// Preference key to measure VStack size (for debugging)
-struct VStackSizeKey: PreferenceKey {
-    static var defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
-        value = nextValue()
     }
 }
 
@@ -220,7 +220,7 @@ struct VStackSizeKey: PreferenceKey {
 
 struct TutorialManager: View {
     let theme: Theme
-    let layout: LayoutController  // NEW: Pass layout for actual dimensions
+    let layout: LayoutController
     let startButtonFrame: CGRect
     let themeButtonFrame: CGRect
     let timeButtonFrame: CGRect
@@ -450,9 +450,9 @@ struct TutorialManager: View {
         switch step {
         case .tapStart:
             // Use actual button dimensions from layout
-            let actualButtonWidth = layout.startButtonWidth * 0.75  // This matches StartButton.swift
+            let actualButtonWidth = layout.startButtonWidth * 0.75
             let actualButtonHeight = layout.startButtonHeight
-            let layerOffset = layout.startButtonLayerOffset  // The 3D base below the button
+            let layerOffset = layout.startButtonLayerOffset
             
             // Total visual height includes the 3D base
             let totalVisualHeight = actualButtonHeight + layerOffset
@@ -465,11 +465,8 @@ struct TutorialManager: View {
             let cutoutWidth = actualButtonWidth + (padding * 2)
             let cutoutX = centerX - (cutoutWidth / 2)
             
-            // The frame starts at the top of the button area
-            // We need the cutout to start ABOVE frame.minY to have padding at top
-            // and extend down to include the 3D base
             let cutoutHeight = totalVisualHeight + (padding * 2)
-            let cutoutY = frame.minY - padding - layerOffset  // Shift UP by layerOffset
+            let cutoutY = frame.minY - padding - layerOffset
             
             return CGRect(
                 x: cutoutX,
@@ -502,10 +499,10 @@ struct TutorialManager: View {
     
     private func cornerRadiusForStep(_ step: TutorialStep) -> CGFloat {
         switch step {
-        case .tapStart: return 28  // Larger corner radius for bigger button
+        case .tapStart: return 28
         case .changeTheme: return 50  // Circle
-        case .changeTime: return 24  // Pill shape
-        case .openMenu: return 50    // Circle
+        case .changeTime: return 24   // Pill shape
+        case .openMenu: return 50     // Circle
         }
     }
 }

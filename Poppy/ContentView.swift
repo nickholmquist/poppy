@@ -97,8 +97,10 @@ struct ContentView: View {
                     }
                     
                     // Expand scoreboard WITH animation to trigger sequential reveal
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) {
-                        scoreboardExpanded = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            scoreboardExpanded = true
+                        }
                     }
                     
                     // THEN trigger celebration
@@ -118,7 +120,7 @@ struct ContentView: View {
                         
                         // Return to user's preferred scoreboard state AFTER celebration
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                            withAnimation(.spring(response: 0.51, dampingFraction: 0.75)) {
                                 scoreboardExpanded = userPreferredScoreboardState
                             }
                         }
@@ -243,7 +245,7 @@ struct ContentView: View {
                     )
                     .frame(maxWidth: .infinity)
                     .offset(y: scoreboardExpanded ? 25 : 0)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.75), value: scoreboardExpanded)
+                    .animation(.spring(response: 0.8, dampingFraction: 0.75), value: scoreboardExpanded)
                     
                     ZStack {
                         Text("Score")
@@ -309,7 +311,7 @@ struct ContentView: View {
                                 y: scoreboardExpanded ? layout.expandedValueOffsetY : layout.collapsedTimeOffsetY
                             )
                     }
-                    .animation(.spring(response: 1.45, dampingFraction: 0.90), value: scoreboardExpanded)
+                    .animation(.spring(response: 1.1, dampingFraction: 0.85), value: scoreboardExpanded)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: scoreboardExpanded ? 140 : layout.ringDiameter)
