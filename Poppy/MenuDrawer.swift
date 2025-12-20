@@ -500,22 +500,24 @@ struct DualToggleRow: View {
     var body: some View {
         HStack(spacing: 0) {
             // Left toggle
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Image(systemName: leftIcon)
-                    .font(.system(size: 16))
+                    .font(.system(size: 14))
                     .foregroundStyle(theme.accent)
-                    .frame(width: 22)
+                    .frame(width: 20)
 
                 Text(leftTitle)
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(theme.textDark)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 Toggle("", isOn: $leftIsOn)
                     .labelsHidden()
                     .tint(theme.accent)
-                    .scaleEffect(0.9)
+                    .scaleEffect(0.85)
             }
             .frame(maxWidth: .infinity)
 
@@ -523,25 +525,27 @@ struct DualToggleRow: View {
             Rectangle()
                 .fill(theme.textDark.opacity(0.1))
                 .frame(width: 1, height: 28)
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 6)
 
             // Right toggle
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Image(systemName: rightIcon)
-                    .font(.system(size: 16))
+                    .font(.system(size: 14))
                     .foregroundStyle(theme.accent)
-                    .frame(width: 22)
+                    .frame(width: 20)
 
                 Text(rightTitle)
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(theme.textDark)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 Toggle("", isOn: $rightIsOn)
                     .labelsHidden()
                     .tint(theme.accent)
-                    .scaleEffect(0.9)
+                    .scaleEffect(0.85)
             }
             .frame(maxWidth: .infinity)
         }
