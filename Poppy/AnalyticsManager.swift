@@ -31,34 +31,47 @@ final class AnalyticsManager {
     }
     
     // MARK: - Game Events
-    
-    func trackGameStart(duration: Int) {
+
+    func trackGameStart(duration: Int, mode: GameMode = .classic) {
         PostHogSDK.shared.capture(
             "game_started",
             properties: [
-                "duration_seconds": duration
+                "duration_seconds": duration,
+                "game_mode": mode.rawValue
             ]
         )
     }
-    
-    func trackGameComplete(score: Int, duration: Int, isNewHigh: Bool, timeLimitSeconds: Int) {
+
+    func trackGameComplete(score: Int, duration: Int, isNewHigh: Bool, timeLimitSeconds: Int, mode: GameMode = .classic) {
         PostHogSDK.shared.capture(
             "game_completed",
             properties: [
                 "score": score,
                 "duration_seconds": duration,
                 "is_new_high": isNewHigh,
-                "time_limit": timeLimitSeconds
+                "time_limit": timeLimitSeconds,
+                "game_mode": mode.rawValue
             ]
         )
     }
-    
-    func trackHighScore(score: Int, duration: Int) {
+
+    func trackHighScore(score: Int, duration: Int, mode: GameMode = .classic) {
         PostHogSDK.shared.capture(
             "high_score_achieved",
             properties: [
                 "score": score,
-                "duration_seconds": duration
+                "duration_seconds": duration,
+                "game_mode": mode.rawValue
+            ]
+        )
+    }
+
+    func trackGameModeChange(from oldMode: GameMode, to newMode: GameMode) {
+        PostHogSDK.shared.capture(
+            "game_mode_changed",
+            properties: [
+                "from_mode": oldMode.rawValue,
+                "to_mode": newMode.rawValue
             ]
         )
     }
@@ -168,8 +181,21 @@ final class AnalyticsManager {
         )
     }
     
+    // MARK: - Deep Link Events
+
+    func trackDeepLink(url: URL) {
+        PostHogSDK.shared.capture(
+            "deep_link_opened",
+            properties: [
+                "url": url.absoluteString,
+                "host": url.host ?? "",
+                "path": url.path
+            ]
+        )
+    }
+
     // MARK: - User Properties
-    
+
     func updateUserProperties(
         totalGamesPlayed: Int? = nil,
         highestScore: Int? = nil,

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poppy IAP Screenshots</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #fff;
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 24px;
+        }
+
+        .screenshots-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .screenshot-container {
+            background: #2a2a2a;
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .screenshot-label {
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .screenshot-title {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        /* iPhone frame - 640x920 content area for App Store */
+        .iphone-frame {
+            width: 320px;
+            height: 460px;
+            background: linear-gradient(180deg, #F9F6EC 0%, #EDE8D9 100%);
+            border-radius: 24px;
+            position: relative;
+            overflow: hidden;
+            margin: 0 auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+
+        /* Poppy Plus Screenshot */
+        .poppy-plus-screen {
+            padding: 40px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+        }
+
+        .plus-icon {
+            width: 80px;
+            height: 80px;
+            background: rgba(232, 93, 117, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .plus-icon svg {
+            width: 40px;
+            height: 40px;
+            fill: #E85D75;
+        }
+
+        .plus-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: #2D2D2D;
+            margin-bottom: 8px;
+        }
+
+        .plus-subtitle {
+            font-size: 15px;
+            color: #666;
+            margin-bottom: 24px;
+        }
+
+        .feature-list {
+            width: 100%;
+            margin-bottom: auto;
+        }
+
+        .feature-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+        }
+
+        .feature-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .feature-icon svg {
+            width: 20px;
+            height: 20px;
+            fill: #E85D75;
+        }
+
+        .feature-text {
+            font-size: 15px;
+            color: #2D2D2D;
+            font-weight: 500;
+        }
+
+        .purchase-button {
+            width: 100%;
+            background: #E85D75;
+            color: white;
+            border: none;
+            border-radius: 14px;
+            padding: 16px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        .purchase-note {
+            font-size: 12px;
+            color: #888;
+            margin-top: 12px;
+        }
+
+        /* Game Modes Screenshot */
+        .modes-screen {
+            padding: 40px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+        }
+
+        .modes-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(232, 93, 117, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .modes-icon svg {
+            width: 32px;
+            height: 32px;
+            fill: #E85D75;
+        }
+
+        .modes-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #2D2D2D;
+            margin-bottom: 6px;
+        }
+
+        .modes-subtitle {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .mode-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            margin-bottom: auto;
+        }
+
+        .mode-card {
+            background: rgba(255,255,255,0.6);
+            border-radius: 12px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mode-card-icon {
+            width: 36px;
+            height: 36px;
+            background: #E85D75;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mode-card-icon svg {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+
+        .mode-card-info h3 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #2D2D2D;
+            margin-bottom: 2px;
+        }
+
+        .mode-card-info p {
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Themes Screenshot */
+        .themes-screen {
+            padding: 40px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+        }
+
+        .themes-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        .theme-dot {
+            aspect-ratio: 1;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        /* Remove Ads Screenshot */
+        .ads-screen {
+            padding: 40px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+        }
+
+        .ads-icon {
+            width: 80px;
+            height: 80px;
+            background: rgba(232, 93, 117, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+
+        .ads-icon svg {
+            width: 44px;
+            height: 44px;
+            fill: #E85D75;
+        }
+
+        .ads-title {
+            font-size: 24px;
+            font-weight: 800;
+            color: #2D2D2D;
+            margin-bottom: 12px;
+        }
+
+        .ads-description {
+            font-size: 15px;
+            color: #666;
+            line-height: 1.5;
+            margin-bottom: 32px;
+        }
+
+        .checkmark-list {
+            text-align: left;
+            margin-bottom: auto;
+        }
+
+        .checkmark-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            font-size: 14px;
+            color: #2D2D2D;
+            font-weight: 500;
+        }
+
+        .checkmark-item svg {
+            width: 20px;
+            height: 20px;
+            fill: #4CAF50;
+        }
+
+        /* Instructions */
+        .instructions {
+            background: #333;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 40px;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .instructions h2 {
+            color: #fff;
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+
+        .instructions ol {
+            color: #aaa;
+            font-size: 14px;
+            line-height: 1.8;
+            padding-left: 20px;
+        }
+
+        .instructions code {
+            background: #444;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Poppy IAP Screenshots for App Store Connect</h1>
+
+    <div class="screenshots-grid">
+        <!-- Poppy Plus -->
+        <div class="screenshot-container">
+            <div class="screenshot-label">com.poppy.plus</div>
+            <div class="screenshot-title">Poppy Plus - $5.99</div>
+            <div class="iphone-frame">
+                <div class="poppy-plus-screen">
+                    <div class="plus-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+                    </div>
+                    <div class="plus-title">Poppy Plus</div>
+                    <div class="plus-subtitle">Unlock everything. Forever.</div>
+
+                    <div class="feature-list">
+                        <div class="feature-row">
+                            <div class="feature-icon">
+                                <svg viewBox="0 0 24 24"><path d="M17 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2m6-2a2 2 0 0 1 2 2v1H9V4a2 2 0 0 1 2-2z"/></svg>
+                            </div>
+                            <div class="feature-text">All 8 game modes</div>
+                        </div>
+                        <div class="feature-row">
+                            <div class="feature-icon">
+                                <svg viewBox="0 0 24 24"><path d="M12 22C6.49 22 2 17.51 2 12S6.49 2 12 2s10 4.04 10 9c0 3.31-2.69 6-6 6h-1.77c-.28 0-.5.22-.5.5 0 .12.05.23.13.33.41.47.64 1.06.64 1.67A2.5 2.5 0 0 1 12 22zm0-18c-4.41 0-8 3.59-8 8s3.59 8 8 8c.28 0 .5-.22.5-.5a.54.54 0 0 0-.14-.35c-.41-.46-.63-1.05-.63-1.65a2.5 2.5 0 0 1 2.5-2.5H16c2.21 0 4-1.79 4-4 0-3.86-3.59-7-8-7z"/><circle cx="6.5" cy="11.5" r="1.5"/><circle cx="9.5" cy="7.5" r="1.5"/><circle cx="14.5" cy="7.5" r="1.5"/><circle cx="17.5" cy="11.5" r="1.5"/></svg>
+                            </div>
+                            <div class="feature-text">All 27 premium themes</div>
+                        </div>
+                        <div class="feature-row">
+                            <div class="feature-icon">
+                                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1A7.902 7.902 0 0 1 20 12c0 4.42-3.58 8-8 8z"/></svg>
+                            </div>
+                            <div class="feature-text">No ads. Ever.</div>
+                        </div>
+                        <div class="feature-row">
+                            <div class="feature-icon">
+                                <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                            </div>
+                            <div class="feature-text">Support indie development</div>
+                        </div>
+                    </div>
+
+                    <button class="purchase-button">Get Poppy Plus • $5.99</button>
+                    <div class="purchase-note">One-time purchase. No subscription.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Modes Bundle -->
+        <div class="screenshot-container">
+            <div class="screenshot-label">com.poppy.modes</div>
+            <div class="screenshot-title">Game Modes Bundle - $2.99</div>
+            <div class="iphone-frame">
+                <div class="modes-screen">
+                    <div class="modes-icon">
+                        <svg viewBox="0 0 24 24"><path d="M17 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                    </div>
+                    <div class="modes-title">Unlock Game Modes</div>
+                    <div class="modes-subtitle">Get access to 3 premium game modes</div>
+
+                    <div class="mode-cards">
+                        <div class="mode-card">
+                            <div class="mode-card-icon">
+                                <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+                            </div>
+                            <div class="mode-card-info">
+                                <h3>Zoomy</h3>
+                                <p>Catch drifting dots</p>
+                            </div>
+                        </div>
+                        <div class="mode-card">
+                            <div class="mode-card-icon">
+                                <svg viewBox="0 0 24 24"><path d="M11 15h2v2h-2v-2zm0-8h2v6h-2V7zm1-5C6.47 2 2 6.5 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2z"/></svg>
+                            </div>
+                            <div class="mode-card-info">
+                                <h3>Tappy</h3>
+                                <p>Survive all 10 rounds</p>
+                            </div>
+                        </div>
+                        <div class="mode-card">
+                            <div class="mode-card-icon">
+                                <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                            </div>
+                            <div class="mode-card-info">
+                                <h3>Seeky</h3>
+                                <p>Find the odd one out</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="purchase-button">Unlock Game Modes • $2.99</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Premium Themes Bundle -->
+        <div class="screenshot-container">
+            <div class="screenshot-label">com.poppy.themes</div>
+            <div class="screenshot-title">Premium Themes Bundle - $2.99</div>
+            <div class="iphone-frame">
+                <div class="themes-screen">
+                    <div class="modes-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 22C6.49 22 2 17.51 2 12S6.49 2 12 2s10 4.04 10 9c0 3.31-2.69 6-6 6h-1.77c-.28 0-.5.22-.5.5 0 .12.05.23.13.33.41.47.64 1.06.64 1.67A2.5 2.5 0 0 1 12 22z"/></svg>
+                    </div>
+                    <div class="modes-title">Premium Themes</div>
+                    <div class="modes-subtitle">Unlock 11 beautiful color themes</div>
+
+                    <div class="themes-grid">
+                        <div class="theme-dot" style="background: linear-gradient(135deg, #FF6B9D, #C44569);"></div>
+                        <div class="theme-dot" style="background: linear-gradient(135deg, #00D9A5, #00B386);"></div>
+                        <div class="theme-dot" style="background: linear-gradient(135deg, #FFB347, #FF8C42);"></div>
+                        <div class="theme-dot" style="background: linear-gradient(135deg, #74B9FF, #0984E3);"></div>
+                        <div class="theme-dot" style="background: linear-gradient(135deg, #A29BFE, #6C5CE7);"></div>
+                        <div class="theme-dot" style="background: linear-gradient(135deg, #FD79A8, #E84393);"></div>
+                        <div class="theme-dot" style="background: linear-gradient(135deg, #55EFC4, #00B894);"></div>
+                        <div class="theme-dot" style="background: linear-gradient(135deg, #FDCB6E, #F39C12);"></div>
+                        <div class="theme-dot" style="background: linear-gradient(135deg, #E17055, #D63031);"></div>
+                        <div class="theme-dot" style="background: linear-gradient(135deg, #00CEC9, #00A8A8);"></div>
+                        <div class="theme-dot" style="background: linear-gradient(135deg, #636E72, #2D3436);"></div>
+                    </div>
+
+                    <div class="feature-list" style="margin-top: auto;">
+                        <div class="feature-row">
+                            <div class="feature-icon">
+                                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            </div>
+                            <div class="feature-text">Tie-Dye, Terminal, Cosmic & more</div>
+                        </div>
+                        <div class="feature-row">
+                            <div class="feature-icon">
+                                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            </div>
+                            <div class="feature-text">New themes added regularly</div>
+                        </div>
+                    </div>
+
+                    <button class="purchase-button">Unlock Themes • $2.99</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Remove Ads -->
+        <div class="screenshot-container">
+            <div class="screenshot-label">com.poppy.removeads</div>
+            <div class="screenshot-title">Remove Ads - $1.99</div>
+            <div class="iphone-frame">
+                <div class="ads-screen">
+                    <div class="ads-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1A7.902 7.902 0 0 1 20 12c0 4.42-3.58 8-8 8z"/></svg>
+                    </div>
+                    <div class="ads-title">Remove Ads</div>
+                    <div class="ads-description">Enjoy Poppy without any interruptions</div>
+
+                    <div class="checkmark-list">
+                        <div class="checkmark-item">
+                            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            No banner ads
+                        </div>
+                        <div class="checkmark-item">
+                            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            No interstitial ads
+                        </div>
+                        <div class="checkmark-item">
+                            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            Cleaner experience
+                        </div>
+                        <div class="checkmark-item">
+                            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            One-time purchase
+                        </div>
+                    </div>
+
+                    <button class="purchase-button" style="margin-top: 32px;">Remove Ads • $1.99</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="instructions">
+        <h2>How to capture screenshots:</h2>
+        <ol>
+            <li>Open this HTML file in Safari or Chrome</li>
+            <li>For each IAP, take a screenshot of just the iPhone frame (640x920 recommended, or capture and crop)</li>
+            <li>App Store Connect requires screenshots to be at least 640x920 pixels</li>
+            <li>Upload to App Store Connect under each IAP's "App Store Promotion" section</li>
+        </ol>
+    </div>
+</body>
+</html>

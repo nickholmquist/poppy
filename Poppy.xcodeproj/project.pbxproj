@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		450C41DB2ED24224007CAFBC /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = 450C41DA2ED24224007CAFBC /* PostHog */; };
+		45FFA73B2EF670500007FC31 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 45FFA73A2EF670500007FC31 /* GoogleMobileAds */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -33,9 +34,23 @@
 		45564A912E94D2D500966093 /* PoppyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PoppyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		45FFA5232EF6292E0007FC31 /* Exceptions for "Poppy" folder in "Poppy" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				Products.storekit,
+			);
+			target = 45564A772E94D2D300966093 /* Poppy */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		45564A7A2E94D2D300966093 /* Poppy */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				45FFA5232EF6292E0007FC31 /* Exceptions for "Poppy" folder in "Poppy" target */,
+			);
 			path = Poppy;
 			sourceTree = "<group>";
 		};
@@ -56,6 +71,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				45FFA73B2EF670500007FC31 /* GoogleMobileAds in Frameworks */,
 				450C41DB2ED24224007CAFBC /* PostHog in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -83,6 +99,7 @@
 				45564A7A2E94D2D300966093 /* Poppy */,
 				45564A8A2E94D2D500966093 /* PoppyTests */,
 				45564A942E94D2D500966093 /* PoppyUITests */,
+				45FFA7392EF670500007FC31 /* Frameworks */,
 				45564A792E94D2D300966093 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -95,6 +112,13 @@
 				45564A912E94D2D500966093 /* PoppyUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		45FFA7392EF670500007FC31 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -118,6 +142,7 @@
 			name = Poppy;
 			packageProductDependencies = (
 				450C41DA2ED24224007CAFBC /* PostHog */,
+				45FFA73A2EF670500007FC31 /* GoogleMobileAds */,
 			);
 			productName = Poppy;
 			productReference = 45564A782E94D2D300966093 /* Poppy.app */;
@@ -203,6 +228,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				450C41D92ED24224007CAFBC /* XCRemoteSwiftPackageReference "posthog-ios" */,
+				45FFA6302EF66F0D0007FC31 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 45564A792E94D2D300966093 /* Products */;
@@ -407,22 +433,18 @@
 				CODE_SIGN_ENTITLEMENTS = Poppy/Poppy.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = XLVLVX3KK4;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_FILE = Poppy/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Poppy;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.family-games";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nickh.Poppy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -447,22 +469,18 @@
 				CODE_SIGN_ENTITLEMENTS = Poppy/Poppy.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = XLVLVX3KK4;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_FILE = Poppy/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Poppy;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.family-games";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nickh.Poppy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -613,6 +631,14 @@
 				minimumVersion = 3.35.0;
 			};
 		};
+		45FFA6302EF66F0D0007FC31 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.14.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -620,6 +646,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 450C41D92ED24224007CAFBC /* XCRemoteSwiftPackageReference "posthog-ios" */;
 			productName = PostHog;
+		};
+		45FFA73A2EF670500007FC31 /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 45FFA6302EF66F0D0007FC31 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

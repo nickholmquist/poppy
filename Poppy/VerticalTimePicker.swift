@@ -163,7 +163,7 @@ struct VerticalTimePicker: View {
                         .fill(theme.accent.opacity(0.2))
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(theme.accent, lineWidth: 3)
+                                .stroke(theme.accent, lineWidth: 2)
                         )
                         .frame(width: stripWidth - 8, height: itemHeight - 4)
                         .offset(y: highlighterY + 2)

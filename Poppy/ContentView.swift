@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import StoreKit
 
 extension ProcessInfo {
     var isPreview: Bool { environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
@@ -15,13 +16,20 @@ extension ProcessInfo {
 struct ContentView: View {
     @EnvironmentObject private var highs: HighscoreStore
     @EnvironmentObject private var store: ThemeStore
+    @EnvironmentObject private var storeManager: StoreManager
+    @EnvironmentObject private var adManager: AdManager
     @StateObject private var engine = GameEngine()
+    @Environment(\.colorScheme) private var colorScheme
 
-    @State private var showTimePicker = false
+    @State private var showSetupPicker = false
     @State private var isNewHigh = false
     @State private var showConfetti = false
-    @State private var selectedTime: Int? = nil
+    @State private var selectedTime: Int = 30
+    @State private var gameMode: GameMode = .classic
+    @State private var matchyGridSize: MatchyGridSize = .small
+    @State private var matchyPlayers: Int = 1
     @State private var showMenu = false
+    @State private var showThemeDrawer = false
     @State private var scoreboardExpanded = UserDefaults.standard.bool(forKey: "poppy.tutorial.firstGame")
     @State private var userPreferredScoreboardState = true
     @State private var celebratingNewHigh = false
@@ -34,7 +42,38 @@ struct ContentView: View {
     @State private var isTransitioning = false
     @State private var transitionOldTheme: Theme? = nil
     @State private var isThemeChangeLocked = false
-    
+
+    // Matchy overlay state
+    @State private var showMatchyPlayersOverlay = false
+    @State private var showMatchyGridOverlay = false
+    @State private var matchyPlayersPillFrame: CGRect = .zero
+    @State private var matchyGridPillFrame: CGRect = .zero
+
+    // Copy mode state
+    @State private var copyDifficulty: CopyDifficulty = .classic
+    @State private var copySlideDirection: CopySlideDirection = .none
+
+    enum CopySlideDirection {
+        case none
+        case toClassic   // Challenge slides right, Classic slides in from left
+        case toChallenge // Classic slides left, Challenge slides in from right
+    }
+
+    // Classic/Boppy header overlay state
+    @State private var showHighScoreOverlay = false
+    @State private var showDurationOverlay = false
+    @State private var highScorePillFrame: CGRect = .zero
+    @State private var durationPillFrame: CGRect = .zero
+
+    // Instruction card state
+    @State private var showInstructionCard = false
+    @State private var previewingLockedMode: GameMode? = nil  // For showing locked mode preview
+
+    // IAP unlock modal states
+    @State private var showUnlockModal = false
+    @State private var unlockModalType: UnlockType = .modes
+    @State private var showPoppyPlusUpsell = false
+
     @Namespace private var statsNamespace
     
     @AppStorage("poppy.tutorial.resetCount") private var tutorialResetCount = 0
@@ -43,8 +82,52 @@ struct ContentView: View {
     @AppStorage("poppy.tutorial.theme") private var hasChangedTheme = false
     @AppStorage("poppy.tutorial.time") private var hasChangedTime = false
     @AppStorage("poppy.tutorial.menu") private var hasOpenedMenu = false
+    @AppStorage("poppy.tutorial.modes") private var hasDiscoveredModes = false
+    @AppStorage("poppy.completedGamesCount") private var completedGamesCount = 0
+    @AppStorage("poppy.hasRequestedReview") private var hasRequestedReview = false
     
     var theme: Theme { store.current }
+
+    // Check if Daily mode has already been played today
+    private var dailyAlreadyPlayed: Bool {
+        gameMode == .daily && highs.hasPlayedDailyToday()
+    }
+
+    // Mode-specific start button title
+    private var startButtonTitle: String {
+        if engine.isCountingDown || engine.isRunning {
+            // During gameplay, show POP only for Classic mode
+            return gameMode.showsPOPButton ? "POP" : ""
+        }
+        if dailyAlreadyPlayed {
+            return "DONE"
+        }
+        return "START"
+    }
+
+    // Mode-specific start button disabled state
+    private var startButtonDisabled: Bool {
+        // Daily mode already played today
+        if dailyAlreadyPlayed {
+            return true
+        }
+        if celebratingNewHigh || engine.cooldownActive {
+            return true
+        }
+        if engine.isCountingDown {
+            return true
+        }
+        if engine.isRunning {
+            // For Classic: disabled unless popReady
+            // For other modes: always disabled during gameplay (no POP button)
+            if gameMode.showsPOPButton {
+                return !engine.popReady
+            } else {
+                return true
+            }
+        }
+        return false
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -63,30 +146,83 @@ struct ContentView: View {
                         }
                 }
                 
-                // Tutorial overlay system (always on top)
-                TutorialOverlaySystem(
-                    theme: theme,
-                    layout: layout,
-                    startButtonFrame: startButtonFrame,
-                    themeButtonFrame: themeButtonFrame,
-                    timeButtonFrame: setTimeButtonFrame,
-                    menuButtonFrame: menuButtonFrame,
-                    hasCompletedFirstGame: $hasCompletedFirstGame,
-                    hasCompletedFirstRound: $hasCompletedFirstRound,
-                    hasChangedTheme: $hasChangedTheme,
-                    hasChangedTime: $hasChangedTime,
-                    hasOpenedMenu: $hasOpenedMenu,
-                    showTimePicker: $showTimePicker,
-                    showMenu: $showMenu
-                )
+                // Instruction card (how to play)
+                if showInstructionCard {
+                    let displayMode = previewingLockedMode ?? gameMode
+                    let isModeLocked = !UnlockManager.shared.isModeUnlocked(displayMode)
+                    GameInstructionCard(
+                        theme: theme,
+                        layout: layout,
+                        gameMode: displayMode,
+                        isLocked: isModeLocked,
+                        onDismiss: {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                showInstructionCard = false
+                            }
+                            if !isModeLocked {
+                                InstructionTracker.markInstructionsSeen(for: displayMode)
+                            }
+                            // Clear preview mode
+                            previewingLockedMode = nil
+                        },
+                        onUnlock: {
+                            // Show unlock modal after instruction card dismisses
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                unlockModalType = .modes
+                                withAnimation(.easeOut(duration: 0.25)) {
+                                    showUnlockModal = true
+                                }
+                            }
+                            // Clear preview mode
+                            previewingLockedMode = nil
+                        }
+                    )
+                }
+
+                // Unlock modal (for modes)
+                if showUnlockModal {
+                    UnlockModal(
+                        theme: theme,
+                        unlockType: unlockModalType,
+                        onDismiss: {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                showUnlockModal = false
+                            }
+                        },
+                        onShowPoppyPlus: {
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                showPoppyPlusUpsell = true
+                            }
+                        }
+                    )
+                }
+
+                // Poppy Plus upsell
+                if showPoppyPlusUpsell {
+                    PoppyPlusUpsell(
+                        theme: theme,
+                        onDismiss: {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                showPoppyPlusUpsell = false
+                            }
+                        }
+                    )
+                }
             }
         }
         .onChange(of: engine.isRunning) { _, running in
             if !running && !engine.gameOver {
-                let mode = engine.roundLength
-                let prev = highs.best[mode] ?? 0
-                highs.register(score: engine.score, for: mode)
-                isNewHigh = engine.score > prev
+                // Register score based on current game mode
+                // For round-based modes, use the round number instead of score
+                let scoreToRegister: Int
+                switch gameMode {
+                case .copy: scoreToRegister = engine.copyRound
+                case .tappy: scoreToRegister = engine.tappyRound
+                default: scoreToRegister = engine.score
+                }
+                let prev = highs.getBest(for: gameMode, duration: engine.roundLength)
+                highs.register(score: scoreToRegister, mode: gameMode, duration: engine.roundLength)
+                isNewHigh = scoreToRegister > prev
 
                 if isNewHigh {
                     // Play celebration sound with confetti
@@ -134,18 +270,73 @@ struct ContentView: View {
                         hasCompletedFirstRound = true
                     }
                 }
+
+                // Track completed games and request review after 5 games
+                completedGamesCount += 1
+                if completedGamesCount >= 5 && !hasRequestedReview {
+                    hasRequestedReview = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        requestAppReview()
+                    }
+                }
+
+                // Trigger interstitial ad check (shows every 6-7 games for non-premium users)
+                adManager.gameCompleted(storeManager: storeManager)
+            }
+        }
+        .onChange(of: engine.gameOver) { _, isGameOver in
+            // Register scores for modes that end with gameOver=true (lives-based modes)
+            if isGameOver {
+                switch gameMode {
+                case .copy:
+                    highs.registerCopyScore(engine.copyRound, difficulty: copyDifficulty)
+                case .tappy:
+                    let score = engine.tappyRound
+                    let prev = highs.getBest(for: .tappy, duration: 0)
+                    highs.register(score: score, mode: .tappy, duration: 0)
+                    if score > prev {
+                        isNewHigh = true
+                    }
+                case .zoomy:
+                    let score = engine.score
+                    let prev = highs.getBest(for: .zoomy, duration: 0)
+                    highs.register(score: score, mode: .zoomy, duration: 0)
+                    if score > prev {
+                        isNewHigh = true
+                    }
+                case .seeky:
+                    let score = engine.seekyRound
+                    let prev = highs.getBest(for: .seeky, duration: 0)
+                    highs.register(score: score, mode: .seeky, duration: 0)
+                    if score > prev {
+                        isNewHigh = true
+                    }
+                default:
+                    break
+                }
             }
         }
         .onAppear {
             engine.setHighscoreStore(highs)
-            
-            // Load the user's last selected time (default to 10s)
+
+            // Apply correct theme for current system appearance
+            store.applyCurrentColorScheme(colorScheme)
+
+            // Load the user's last selected mode and time
+            gameMode = GameMode.loadSelected()
+            engine.setGameMode(gameMode)  // Sync to engine
             let savedTime = UserDefaults.standard.integer(forKey: "poppy.roundLength")
             let timeToUse = (savedTime > 0) ? savedTime : 10
-            
+            selectedTime = timeToUse
+
+            // Load saved Copy difficulty
+            copyDifficulty = CopyDifficulty.load()
+            engine.copyDifficulty = copyDifficulty
+
             if !hasCompletedFirstGame {
                 engine.roundLength = 10
                 engine.remaining = 10.0
+                selectedTime = 10
                 scoreboardExpanded = false
                 userPreferredScoreboardState = false
             } else {
@@ -154,6 +345,49 @@ struct ContentView: View {
                 scoreboardExpanded = true
                 userPreferredScoreboardState = true
             }
+
+            // Show instruction card on first visit to this mode
+            if !InstructionTracker.hasSeenInstructions(for: gameMode) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        showInstructionCard = true
+                    }
+                }
+            }
+        }
+        .onChange(of: gameMode) { _, newMode in
+            // Show instruction card on first visit to a new mode
+            if !InstructionTracker.hasSeenInstructions(for: newMode) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        showInstructionCard = true
+                    }
+                }
+            }
+        }
+        .onChange(of: colorScheme) { _, newScheme in
+            // Auto-switch theme when system appearance changes
+            store.updateColorScheme(newScheme)
+        }
+        .onChange(of: copyDifficulty) { oldDifficulty, newDifficulty in
+            // Sync Copy difficulty to engine
+            engine.copyDifficulty = newDifficulty
+
+            // Trigger slide animation when in Copy mode and not during gameplay
+            if gameMode == .copy && !engine.isRunning && !engine.isCountingDown && oldDifficulty != newDifficulty {
+                copySlideDirection = newDifficulty == .classic ? .toClassic : .toChallenge
+
+                // Reset after animation completes
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    copySlideDirection = .none
+                }
+            }
+        }
+        .onChange(of: matchyPlayers) { _, newPlayers in
+            engine.setMatchyPlayerCount(newPlayers)
+        }
+        .onChange(of: matchyGridSize) { _, newSize in
+            engine.setMatchyGridSize(newSize.dotCount)
         }
         .onChange(of: scoreboardExpanded) { _, expanded in
             // Track user's preference, but only if not currently celebrating
@@ -161,285 +395,730 @@ struct ContentView: View {
                 userPreferredScoreboardState = expanded
             }
         }
+        .onChange(of: engine.gameOver) { _, isGameOver in
+            // Show confetti for all Matchy completions
+            if isGameOver && gameMode == .matchy {
+                withAnimation(.spring(response: 0.36, dampingFraction: 0.7)) {
+                    showConfetti = true
+                }
+
+                // For single player, auto-dismiss after confetti
+                // For multiplayer, confetti stays until winner overlay is dismissed
+                let confettiDuration: Double = engine.matchyPlayerCount == 1 ? 3.5 : 5.0
+                DispatchQueue.main.asyncAfter(deadline: .now() + confettiDuration) {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showConfetti = false
+                    }
+                    // For single player, also dismiss the game over state
+                    if engine.matchyPlayerCount == 1 && engine.gameOver {
+                        engine.dismissGameOver()
+                    }
+                }
+            }
+        }
     }
     
     @ViewBuilder
     private func gameUIView(layout: LayoutController, theme: Theme) -> some View {
+        let mainContent = mainGameContent(layout: layout, theme: theme)
+        let withOverlays = mainContent
+            .overlay { gameOverlays(layout: layout, theme: theme) }
+            .overlay { confettiOverlay() }
+            .overlay { menuOverlay(theme: theme) }
+            .overlay { themeDrawerOverlay(theme: theme) }
+
+        withOverlays
+            .paperTextureOverlay()
+            .onChange(of: tutorialResetCount) { _, newCount in
+                if newCount > 0 {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                        scoreboardExpanded = false
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder
+    private func mainGameContent(layout: LayoutController, theme: Theme) -> some View {
+        let config = gameMode.layoutConfig
+
         ZStack(alignment: .top) {
             VStack(spacing: 0) {
-                TopBar(
-                    theme: theme,
-                    layout: layout,
-                    isPlaying: engine.isRunning,
-                    isThemeLocked: isThemeChangeLocked,
-                    onThemeTap: {
-                        guard !isThemeChangeLocked else { return }
-                        
-                        isThemeChangeLocked = true
-                        
-                        SoundManager.shared.play(.themeChange)
-                        store.cycleNext()
-                        
-                        // Track theme change
-                        let themeName = store.names[store.themes.firstIndex(where: {
-                            $0.accent == store.current.accent
-                        }) ?? 0]
-                        AnalyticsManager.shared.trackThemeChange(themeName: themeName)
-                        
-                        triggerThemeTransition()
-                        engine.triggerThemeWave()
-                        
-                        if !hasChangedTheme {
-                            hasChangedTheme = true
-                        }
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                            isThemeChangeLocked = false
-                        }
-                    },
-                    onMenuTap: {
-                        // Track menu open
-                        AnalyticsManager.shared.trackMenuOpened()
-                        
-                        showMenu = true
-                        
-                        if !hasOpenedMenu {
-                            hasOpenedMenu = true
-                        }
-                    },
-                    onTimeTap: {
-                        selectedTime = engine.roundLength
-                        showTimePicker = true
-                    },
-                    onButtonFrameChange: { frame in
-                        setTimeButtonFrame = frame
-                    },
-                    onThemeButtonFrameChange: { frame in
-                        themeButtonFrame = frame
-                    },
-                    onMenuButtonFrameChange: { frame in
-                        menuButtonFrame = frame
-                    }
-                )
+                topBarSection(layout: layout, theme: theme)
+                settingsSection(layout: layout, theme: theme)
 
-                HighScoreBoard(
-                    theme: theme,
-                    layout: layout,
-                    highs: highs,
-                    isRunning: engine.isRunning,
-                    isExpanded: $scoreboardExpanded,
-                    celebratingMode: celebratingNewHigh ? engine.roundLength : nil
-                )
-                .padding(.top, layout.scoreboardTopPadding)
+                // Stats section (Score/Time display) - only for modes that use it
+                if config.showsStatsSection {
+                    Spacer().frame(height: config.statsTopPadding(layout))
+                    statsSection(layout: layout, theme: theme)
+                }
 
-                Spacer().frame(height: layout.statsTopPadding)
-                
-                // --- RESTORED ORIGINAL MANUAL ZSTACK ---
-                ZStack(alignment: .center) {
-                    MorphingTimerDisplay(
+                // Spacer between header and board
+                if config.usesFlexibleSpacer {
+                    Spacer(minLength: config.boardSpacerHeight(layout))
+                } else if config.boardSpacerHeight(layout) > 0 {
+                    Spacer().frame(height: config.boardSpacerHeight(layout))
+                }
+
+                // Board rendering
+                if config.usesInlineBoard {
+                    // Zoomy uses inline board with different layout
+                    ZoomyBoardView(
                         theme: theme,
                         layout: layout,
-                        progress: engine.timeProgress,
-                        isExpanded: scoreboardExpanded,
-                        isUrgent: engine.isUrgent
+                        dots: engine.zoomyDots,
+                        lives: engine.lives,
+                        score: engine.score,
+                        onTapDot: { engine.tapZoomyDot($0) }
                     )
-                    .frame(maxWidth: .infinity)
-                    .offset(y: scoreboardExpanded ? 25 : 0)
-                    .animation(.spring(response: 0.8, dampingFraction: 0.75), value: scoreboardExpanded)
-                    
-                    ZStack {
-                        Text("Score")
-                            .font(.system(
-                                size: scoreboardExpanded ? layout.expandedScoreLabelSize : layout.statsLabelSize,
-                                weight: .medium,
-                                design: .rounded
-                            ))
-                            .foregroundStyle(theme.textDark.opacity(0.9))
-                            .offset(
-                                x: scoreboardExpanded ? -layout.expandedSideOffsetX : 0,
-                                y: scoreboardExpanded ? layout.expandedLabelOffsetY : layout.collapsedScoreLabelOffsetY
-                            )
-                        
-                        Text("\(engine.score)")
-                            .font(.system(
-                                size: scoreboardExpanded ? layout.expandedScoreValueSize : layout.statsScoreSize * 2.2,
-                                weight: .heavy,
-                                design: .rounded
-                            ))
-                            .foregroundStyle(engine.highScoreFlash ? Color(hex: "#FFD700") : theme.textDark)
-                            .minimumScaleFactor(0.7)
-                            .lineLimit(1)
-                            .scaleEffect(engine.scoreBump ? 1.06 : 1.0, anchor: .center)
-                            .animation(.spring(response: 0.22, dampingFraction: 0.6), value: engine.scoreBump)
-                            .shadow(
-                                color: engine.highScoreFlash ? Color(hex: "#FFD700").opacity(0.6) : .clear,
-                                radius: engine.highScoreFlash ? 12 : 0
-                            )
-                            .shadow(
-                                color: engine.highScoreFlash ? Color(hex: "#FFA500").opacity(0.4) : .clear,
-                                radius: engine.highScoreFlash ? 20 : 0
-                            )
-                            .offset(
-                                x: scoreboardExpanded ? -layout.expandedSideOffsetX : 0,
-                                y: scoreboardExpanded ? layout.expandedValueOffsetY : layout.collapsedScoreValueOffsetY
-                            )
-                        
-                        Text("Time")
-                            .font(.system(
-                                size: scoreboardExpanded ? layout.expandedTimeLabelSize : layout.statsLabelSize,
-                                weight: .medium,
-                                design: .rounded
-                            ))
-                            .foregroundStyle(theme.textDark.opacity(0.9))
-                            .opacity(scoreboardExpanded ? 1 : 0)
-                            .offset(
-                                x: scoreboardExpanded ? layout.expandedSideOffsetX : 0,
-                                y: scoreboardExpanded ? layout.expandedLabelOffsetY : 0
-                            )
-                        
-                        Text("\(Int(ceil(engine.remaining)))s")
-                            .font(.system(
-                                size: scoreboardExpanded ? layout.expandedTimeValueSize : layout.statsTimeSize,
-                                weight: .heavy,
-                                design: .rounded
-                            ))
-                            .foregroundStyle(theme.textDark.opacity(scoreboardExpanded ? 1.0 : 0.85))
-                            .minimumScaleFactor(0.7)
-                            .lineLimit(1)
-                            .offset(
-                                x: scoreboardExpanded ? layout.expandedSideOffsetX : 0,
-                                y: scoreboardExpanded ? layout.expandedValueOffsetY : layout.collapsedTimeOffsetY
-                            )
-                    }
-                    .animation(.spring(response: 1.1, dampingFraction: 0.85), value: scoreboardExpanded)
+                    .padding(.top, 55)
+                } else {
+                    boardSection(layout: layout, theme: theme)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: scoreboardExpanded ? 140 : layout.ringDiameter)
-                .animation(.spring(response: 0.5, dampingFraction: 0.75), value: scoreboardExpanded)
-
-                Spacer(minLength: 0)
-
-                BoardView(
-                    theme: theme,
-                    layout: layout,
-                    active: engine.active,
-                    pressed: engine.pressed,
-                    onTap: { engine.tapDot($0) },
-                    bounceAll: engine.bounceAll,
-                    bounceIndividual: engine.bounceIndividual,
-                    rippleDisplacements: engine.rippleDisplacements,
-                    idleTapFlash: engine.idleTapFlash,
-                    themeWaveDisplacements: engine.themeWaveDisplacements
-                )
-                .id(engine.boardEpoch)
-                .frame(maxWidth: layout.boardWidth)
-                .frame(height: layout.boardHeight)
-                .padding(.bottom, layout.boardBottomPadding)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background {
-            theme.background.ignoresSafeArea()
-        }
+        .background { theme.background.ignoresSafeArea() }
         .safeAreaInset(edge: .bottom) {
-            StartButton(
+            bottomButtonSection(layout: layout, theme: theme)
+        }
+    }
+
+    // MARK: - View Sections (broken up to reduce compiler complexity)
+
+    @ViewBuilder
+    private func topBarSection(layout: LayoutController, theme: Theme) -> some View {
+        TopBar(
+            theme: theme,
+            layout: layout,
+            isPlaying: engine.isRunning,
+            isThemeLocked: isThemeChangeLocked,
+            isSetupPickerOpen: showSetupPicker,
+            gameMode: gameMode,
+            selectedTime: selectedTime,
+            showModeHint: hasCompletedFirstGame && !hasDiscoveredModes,
+            onThemeTap: { handleThemeTap() },
+            onThemeLongPress: { showThemeDrawer = true },
+            onMenuTap: { handleMenuTap() },
+            onSetupTap: {
+                showSetupPicker = true
+                if !hasDiscoveredModes { hasDiscoveredModes = true }
+            },
+            onButtonFrameChange: { setTimeButtonFrame = $0 },
+            onThemeButtonFrameChange: { themeButtonFrame = $0 },
+            onMenuButtonFrameChange: { menuButtonFrame = $0 },
+            onInfoTap: { showInstructionCard = true }
+        )
+    }
+
+    private func handleThemeTap() {
+        guard !isThemeChangeLocked else { return }
+        isThemeChangeLocked = true
+        SoundManager.shared.play(.themeChange)
+        store.cycleNext()
+        let themeName = store.names[store.themes.firstIndex(where: { $0.accent == store.current.accent }) ?? 0]
+        AnalyticsManager.shared.trackThemeChange(themeName: themeName)
+        triggerThemeTransition()
+        engine.triggerThemeWave()
+        if !hasChangedTheme { hasChangedTheme = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { isThemeChangeLocked = false }
+    }
+
+    private func handleMenuTap() {
+        AnalyticsManager.shared.trackMenuOpened()
+        showMenu = true
+        if !hasOpenedMenu { hasOpenedMenu = true }
+    }
+
+    @ViewBuilder
+    private func settingsSection(layout: LayoutController, theme: Theme) -> some View {
+        if gameMode == .matchy {
+            // Matchy header with pills and matches display
+            MatchyHeader(
                 theme: theme,
                 layout: layout,
-                title: (engine.isCountingDown || engine.isRunning) ? "POP" : "START",
-                textColor: theme.textOnAccent,
-                action: {
-                    if !engine.isRunning && !engine.isCountingDown {
-                        if !hasCompletedFirstGame {
-                            hasCompletedFirstGame = true
-                        }
-                        engine.start()
-                    }
-                    else if engine.popReady { engine.pressPop() }
-                },
-                isDisabled: engine.isCountingDown || (engine.isRunning && !engine.popReady) || celebratingNewHigh || engine.cooldownActive
+                playerCount: Binding(
+                    get: { engine.matchyPlayerCount },
+                    set: { engine.setMatchyPlayerCount($0) }
+                ),
+                gridSize: Binding(
+                    get: { MatchyGridSize(rawValue: engine.matchyGridSize) ?? .small },
+                    set: { engine.setMatchyGridSize($0.dotCount) }
+                ),
+                playerScores: engine.matchyPlayerScores,
+                currentPlayer: engine.matchyCurrentPlayer,
+                isPlaying: engine.isRunning || engine.isCountingDown,
+                flipsCount: engine.matchyAttempts,
+                showPlayersOverlay: $showMatchyPlayersOverlay,
+                showGridOverlay: $showMatchyGridOverlay,
+                playersPillFrame: $matchyPlayersPillFrame,
+                gridPillFrame: $matchyGridPillFrame
             )
-            .frame(height: layout.startButtonHeight)
-            .padding(.horizontal, layout.startButtonHorizontalPadding)
-            .padding(.bottom, layout.startButtonBottomPadding)
-            .background(
-                GeometryReader { geo in
-                    Color.clear.onAppear {
-                        startButtonFrame = geo.frame(in: .global)
-                    }
-                    .onChange(of: geo.frame(in: .global)) { _, newFrame in
-                        startButtonFrame = newFrame
-                    }
-                }
+            .padding(.horizontal, 20)
+            .padding(.top, layout.scoreboardTopPadding * 1.25)
+        } else if gameMode == .daily {
+            // Daily mode gets its own card instead of scoreboard
+            DailyCard(
+                theme: theme,
+                layout: layout,
+                highs: highs,
+                isRunning: engine.isRunning
             )
+            .padding(.top, layout.scoreboardTopPadding)
+        } else if gameMode == .copy {
+            // Copy mode header with difficulty rocker and best round
+            CopyHeader(
+                theme: theme,
+                layout: layout,
+                difficulty: $copyDifficulty,
+                classicBest: highs.copyClassicBest,
+                challengeBest: highs.copyChallengeBest,
+                currentRound: engine.copyRound,
+                isShowingSequence: engine.copyShowingSequence,
+                isPlaying: engine.isRunning || engine.isCountingDown,
+                isRunning: engine.isRunning || engine.isCountingDown || copySlideDirection != .none
+            )
+            .padding(.top, layout.scoreboardTopPadding)
+        } else if gameMode == .zoomy {
+            // Zoomy mode - high score card only (current score shown above container)
+            ZoomyHeader(
+                theme: theme,
+                layout: layout,
+                best: highs.getBest(for: .zoomy, duration: engine.roundLength)
+            )
+            .padding(.top, layout.scoreboardTopPadding)
+        } else if gameMode == .tappy {
+            // Tappy mode - pills only (lives and timer moved to stats section)
+            TappyHeader(
+                theme: theme,
+                layout: layout,
+                round: engine.tappyRound,
+                best: highs.getBest(for: .tappy, duration: 0),
+                isRunning: engine.isRunning
+            )
+            .padding(.top, layout.scoreboardTopPadding * 1.4)
+        } else if gameMode == .seeky {
+            // Seeky mode header - High Score card only (flat, not a button)
+            SeekyHeader(
+                theme: theme,
+                layout: layout,
+                best: highs.getBest(for: .seeky, duration: engine.roundLength)
+            )
+            .padding(.top, layout.scoreboardTopPadding * 0.6)
+        } else {
+            // Classic and Boppy use pill-based header - under top bar
+            ClassicHeader(
+                theme: theme,
+                layout: layout,
+                gameMode: gameMode,
+                highScores: gameMode == .boppy ? highs.boppyBest : highs.best,
+                selectedDuration: $selectedTime,
+                isPlaying: engine.isRunning || engine.isCountingDown,
+                timeRemaining: engine.remaining,
+                showHighScoreOverlay: $showHighScoreOverlay,
+                showDurationOverlay: $showDurationOverlay,
+                highScorePillFrame: $highScorePillFrame,
+                durationPillFrame: $durationPillFrame
+            )
+            .padding(.top, layout.scoreboardTopPadding * 1.25)
         }
-        .overlay {
-            ZStack {
-                if engine.isCountingDown, let c = engine.countdown {
-                    CountdownOverlay(theme: theme, count: c)
-                }
-                if engine.gameOver {
-                    GameOverOverlay(theme: theme) { engine.dismissGameOver() }
-                }
-                if showTimePicker {
-                    VerticalTimePicker(
+    }
+
+    @ViewBuilder
+    private func statsSection(layout: LayoutController, theme: Theme) -> some View {
+        // For Matchy mode, the stats are shown in the header, so this section is empty
+        if gameMode != .matchy {
+            ZStack(alignment: .center) {
+                classicStatsView(layout: layout, theme: theme)
+            }
+            .frame(maxWidth: .infinity)
+            .id(gameMode)  // Force view recreation when mode changes
+        }
+    }
+
+    // Daily and Seeky modes always use expanded layout
+    private var effectiveExpanded: Bool {
+        (gameMode == .daily || gameMode == .seeky) ? true : scoreboardExpanded
+    }
+
+    // Seeky timer progress (0-1)
+    private var seekyTimeProgress: Double {
+        // Show full bar before game starts
+        guard engine.isRunning else { return 1.0 }
+        guard engine.seekyTimeRemaining > 0 else { return 0 }
+        return engine.seekyTimeRemaining / 5.0
+    }
+
+    // Seeky urgent state (<=2 seconds)
+    private var seekyIsUrgent: Bool {
+        engine.isRunning && engine.seekyTimeRemaining <= 2 && engine.seekyTimeRemaining > 0
+    }
+
+    @ViewBuilder
+    private func classicStatsView(layout: LayoutController, theme: Theme) -> some View {
+        Group {
+            // Seeky uses its own integrated score container with center-out timer
+            if gameMode == .seeky {
+                VStack(spacing: layout.unit * 2) {
+                    // Score container with integrated timer
+                    SeekyScoreContainer(
                         theme: theme,
-                        show: $showTimePicker,
-                        selected: $selectedTime,
-                        buttonFrame: setTimeButtonFrame,
-                        onConfirm: { s in
-                            if !ProcessInfo.processInfo.isPreview {
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            }
-                            
-                            // Track time duration change
-                            let oldDuration = engine.roundLength
-                            AnalyticsManager.shared.trackTimeDurationChange(
-                                from: oldDuration,
-                                to: s
-                            )
-                            
-                            engine.roundLength = s
-                            engine.remaining = Double(s)
-                            
-                            if !hasChangedTime {
-                                hasChangedTime = true
-                            }
-                        }
+                        layout: layout,
+                        score: engine.seekyRound,
+                        timeRemaining: Int(ceil(engine.seekyTimeRemaining > 0 ? engine.seekyTimeRemaining : 5.0)),
+                        timeProgress: seekyTimeProgress,
+                        isUrgent: seekyIsUrgent,
+                        isRunning: engine.isRunning,
+                        lives: engine.lives
+                    )
+
+                    // Lives display between timer and dots
+                    SeekyLivesDisplay(
+                        theme: theme,
+                        layout: layout,
+                        lives: engine.lives
                     )
                 }
+            } else {
+                scoreAndTimeDisplay(layout: layout, theme: theme)
             }
         }
-        .overlay {
-            if showConfetti {
-                ConfettiView()
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .compositingGroup()
-                    .transition(.opacity)
-            }
-        }
-        .overlay {
-            MenuDrawer(
+    }
+
+    @ViewBuilder
+    private func scoreAndTimeDisplay(layout: LayoutController, theme: Theme) -> some View {
+        // Classic, Boppy, and Daily use integrated timer-container score display
+        if gameMode == .classic || gameMode == .boppy || gameMode == .daily {
+            ClassicScoreContainer(
                 theme: theme,
-                isOpen: $showMenu,
-                tutorialResetCount: $tutorialResetCount,
-                hasCompletedFirstGame: $hasCompletedFirstGame,
-                hasCompletedFirstRound: $hasCompletedFirstRound,
-                hasChangedTheme: $hasChangedTheme,
-                hasChangedTime: $hasChangedTime,
-                hasOpenedMenu: $hasOpenedMenu
+                layout: layout,
+                score: engine.score,
+                timeRemaining: Int(ceil(engine.remaining)),
+                timeProgress: engine.timeProgress,
+                isUrgent: engine.isUrgent,
+                isRunning: engine.isRunning,
+                highScoreFlash: engine.highScoreFlash,
+                scoreBump: engine.scoreBump,
+                showTimer: gameMode == .daily  // Daily shows both Score and Time
             )
-            .environmentObject(highs)
-            .zIndex(100)
+        } else {
+            // Other modes use the original stacked layout
+            ZStack {
+                Text(gameMode.scoreLabel)
+                    .font(.system(
+                        size: effectiveExpanded ? layout.expandedScoreLabelSize : layout.statsLabelSize,
+                        weight: .medium,
+                        design: .rounded
+                    ))
+                    .foregroundStyle(theme.textDark.opacity(0.9))
+                    .offset(
+                        x: (effectiveExpanded && gameMode.showsTimer) ? -layout.expandedSideOffsetX : 0,
+                        y: effectiveExpanded ? layout.expandedLabelOffsetY : layout.collapsedScoreLabelOffsetY
+                    )
+
+                scoreValueText(layout: layout, theme: theme)
+
+                if gameMode.showsTimer {
+                    timeLabels(layout: layout, theme: theme)
+                }
+            }
+            .animation(.spring(response: 1.1, dampingFraction: 0.85), value: effectiveExpanded)
         }
-        .paperTextureOverlay()
-        .onChange(of: tutorialResetCount) { _, newCount in
-            if newCount > 0 {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                    scoreboardExpanded = false
+    }
+
+    @ViewBuilder
+    private func scoreValueText(layout: LayoutController, theme: Theme) -> some View {
+        Text("\(engine.score)")
+            .font(.system(
+                size: effectiveExpanded ? layout.expandedScoreValueSize : layout.statsScoreSize * 2.2,
+                weight: .heavy,
+                design: .rounded
+            ))
+            .foregroundStyle(engine.highScoreFlash ? Color(hex: "#FFD700") : theme.textDark)
+            .minimumScaleFactor(0.7)
+            .lineLimit(1)
+            .scaleEffect(engine.scoreBump ? 1.06 : 1.0, anchor: .center)
+            .animation(.spring(response: 0.22, dampingFraction: 0.6), value: engine.scoreBump)
+            .shadow(
+                color: engine.highScoreFlash ? Color(hex: "#FFD700").opacity(0.6) : .clear,
+                radius: engine.highScoreFlash ? 12 : 0
+            )
+            .shadow(
+                color: engine.highScoreFlash ? Color(hex: "#FFA500").opacity(0.4) : .clear,
+                radius: engine.highScoreFlash ? 20 : 0
+            )
+            .offset(
+                x: (effectiveExpanded && gameMode.showsTimer) ? -layout.expandedSideOffsetX : 0,
+                y: effectiveExpanded ? layout.expandedValueOffsetY : layout.collapsedScoreValueOffsetY
+            )
+    }
+
+    @ViewBuilder
+    private func timeLabels(layout: LayoutController, theme: Theme) -> some View {
+        // Seeky shows its own time, others use engine.remaining
+        let displayTime = gameMode == .seeky
+            ? Int(ceil(engine.seekyTimeRemaining > 0 ? engine.seekyTimeRemaining : 5.0))
+            : Int(ceil(engine.remaining))
+
+        Group {
+            Text("Time")
+                .font(.system(
+                    size: effectiveExpanded ? layout.expandedTimeLabelSize : layout.statsLabelSize,
+                    weight: .medium,
+                    design: .rounded
+                ))
+                .foregroundStyle(theme.textDark.opacity(0.9))
+                .opacity(effectiveExpanded ? 1 : 0)
+                .offset(
+                    x: effectiveExpanded ? layout.expandedSideOffsetX : 0,
+                    y: effectiveExpanded ? layout.expandedLabelOffsetY : 0
+                )
+
+            Text("\(displayTime)s")
+                .font(.system(
+                    size: effectiveExpanded ? layout.expandedTimeValueSize : layout.statsTimeSize,
+                    weight: .heavy,
+                    design: .rounded
+                ))
+                .foregroundStyle(theme.textDark.opacity(effectiveExpanded ? 1.0 : 0.85))
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+                .offset(
+                    x: effectiveExpanded ? layout.expandedSideOffsetX : 0,
+                    y: effectiveExpanded ? layout.expandedValueOffsetY : layout.collapsedTimeOffsetY
+                )
+        }
+    }
+
+    @ViewBuilder
+    private func boardSection(layout: LayoutController, theme: Theme) -> some View {
+        VStack(spacing: layout.unit * 8) {
+            // Tappy stats (hearts + timer) shown just above the board
+            if gameMode == .tappy {
+                TappyStatsSection(
+                    theme: theme,
+                    layout: layout,
+                    lives: engine.lives,
+                    timeRemaining: engine.tappyTimeRemaining,
+                    timeLimit: engine.tappyCurrentTimeLimit(),
+                    isActive: engine.isRunning && engine.tappyState == .active
+                )
+            }
+
+            ZStack {
+                // Copy Classic uses 4-dot Simon board
+                if gameMode == .copy && copyDifficulty == .classic {
+                    SimonBoard(
+                        theme: theme,
+                        layout: layout,
+                        activeIndex: engine.active.first,
+                        pressedIndex: engine.pressed.first,
+                        onTap: { engine.tapDot($0) }
+                    )
+                    .transition(.asymmetric(
+                        insertion: .offset(x: -500),
+                        removal: .offset(x: -500)
+                    ))
+                } else if gameMode == .copy && copyDifficulty == .challenge {
+                    // Copy Challenge uses regular BoardView
+                    standardBoardView(layout: layout, theme: theme)
+                        .transition(.asymmetric(
+                            insertion: .offset(x: 500),
+                            removal: .offset(x: 500)
+                        ))
+                } else if gameMode == .seeky {
+                    // Seeky mode - with odd dot detection
+                    standardBoardView(layout: layout, theme: theme, includeSeekProps: true)
+                } else {
+                    // All other modes (Classic, Daily, Matchy, Boppy, Tappy)
+                    standardBoardView(layout: layout, theme: theme)
+                        .opacity(dailyAlreadyPlayed ? 0.3 : 1.0)
+                }
+            }
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: copyDifficulty)
+            .frame(maxWidth: layout.boardWidth)
+            .frame(maxHeight: gameMode == .matchy ? .infinity : layout.boardHeight)
+            .frame(height: gameMode == .matchy ? nil : layout.boardHeight)
+            // Clip to full screen width so boards slide off screen edges
+            .clipShape(
+                Rectangle()
+                    .size(width: 3000, height: 10000)
+                    .offset(x: -1500 + layout.boardWidth / 2, y: -5000)
+            )
+        }
+        .padding(.bottom, layout.boardBottomPadding)
+    }
+
+    /// Standard BoardView with common parameters - reduces code duplication
+    @ViewBuilder
+    private func standardBoardView(layout: LayoutController, theme: Theme, includeSeekProps: Bool = false) -> some View {
+        let isMatchy = gameMode == .matchy
+
+        BoardView(
+            theme: theme,
+            layout: layout,
+            active: dailyAlreadyPlayed ? [] : engine.active,
+            pressed: dailyAlreadyPlayed ? Set(0..<10) : engine.pressed,
+            onTap: { engine.tapDot($0) },
+            bounceAll: engine.bounceAll,
+            bounceIndividual: engine.bounceIndividual,
+            rippleDisplacements: engine.rippleDisplacements,
+            idleTapFlash: engine.idleTapFlash,
+            themeWaveDisplacements: engine.themeWaveDisplacements,
+            matchyColors: isMatchy ? engine.matchyColors : [:],
+            matchyRevealedArray: isMatchy ? Array(engine.matchyRevealed) : [],
+            matchyMatchedArray: isMatchy ? Array(engine.matchyMatched) : [],
+            matchyGridSize: isMatchy ? engine.matchyGridSize : 10,
+            seekyOddDot: includeSeekProps ? engine.seekyOddDot : nil,
+            seekyDifference: includeSeekProps ? engine.seekyDifference : .color,
+            seekyDifferenceAmount: includeSeekProps ? engine.seekyDifferenceAmount : 0,
+            seekyBaseColor: includeSeekProps ? engine.seekyBaseColor : nil,
+            seekyRevealingAnswer: includeSeekProps ? engine.seekyRevealingAnswer : false
+        )
+        .id(engine.boardEpoch)
+    }
+
+    @ViewBuilder
+    private func bottomButtonSection(layout: LayoutController, theme: Theme) -> some View {
+        let showEndButton = engine.isRunning && !gameMode.showsPOPButton
+
+        ZStack {
+            // Show either START or END button - END takes over START's position
+            // Instant swap with no transition/fade
+            if showEndButton {
+                EndGameButton(theme: theme, layout: layout) {
+                    engine.endGameEarly()
+                }
+                .transition(.identity)
+            } else {
+                StartButton(
+                    theme: theme,
+                    layout: layout,
+                    title: startButtonTitle,
+                    textColor: theme.textOnAccent,
+                    action: { handleStartButtonTap() },
+                    isDisabled: startButtonDisabled
+                )
+                .transition(.identity)
+            }
+        }
+        .animation(nil, value: showEndButton)
+        .padding(.horizontal, layout.startButtonHorizontalPadding)
+        .padding(.bottom, layout.startButtonBottomPadding)
+        .background(
+            GeometryReader { geo in
+                Color.clear.onAppear { startButtonFrame = geo.frame(in: .global) }
+                    .onChange(of: geo.frame(in: .global)) { _, newFrame in startButtonFrame = newFrame }
+            }
+        )
+    }
+
+    private func handleStartButtonTap() {
+        if !engine.isRunning && !engine.isCountingDown {
+            if !hasCompletedFirstGame { hasCompletedFirstGame = true }
+            engine.start()
+        } else if engine.popReady && gameMode.showsPOPButton {
+            engine.pressPop()
+        }
+    }
+
+    @ViewBuilder
+    private func gameOverlays(layout: LayoutController, theme: Theme) -> some View {
+        ZStack {
+            // Daily completed overlay - centered on screen (below pickers)
+            if dailyAlreadyPlayed, let todayScore = highs.dailyTodayScore {
+                DailyCompletedOverlay(theme: theme, score: todayScore, streak: highs.dailyStreak)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.scale.combined(with: .opacity))
+            }
+
+            if engine.isCountingDown, let c = engine.countdown {
+                CountdownOverlay(theme: theme, count: c)
+            }
+            // Game over overlay - skip for Matchy (has its own end screen)
+            if engine.gameOver && gameMode != .matchy {
+                GameOverOverlay(
+                    theme: theme,
+                    onOK: { engine.dismissGameOver() },
+                    isPerfectMatchy: false,
+                    copyRound: gameMode == .copy ? engine.copyRound : nil
+                )
+            }
+            // Matchy multiplayer winner overlay
+            if engine.gameOver && gameMode == .matchy && engine.matchyPlayerCount > 1 {
+                MatchyWinnerOverlay(
+                    theme: theme,
+                    playerScores: engine.matchyPlayerScores,
+                    onDismiss: { engine.dismissGameOver() }
+                )
+            }
+            if showSetupPicker {
+                gameSetupPickerView(layout: layout, theme: theme)
+            }
+
+            // Matchy overlay pickers
+            if showMatchyPlayersOverlay {
+                MatchyPlayersOverlay(
+                    theme: theme,
+                    layout: layout,
+                    show: $showMatchyPlayersOverlay,
+                    playerCount: Binding(
+                        get: { engine.matchyPlayerCount },
+                        set: { engine.setMatchyPlayerCount($0) }
+                    ),
+                    buttonFrame: matchyPlayersPillFrame
+                )
+            }
+
+            if showMatchyGridOverlay {
+                MatchyGridOverlay(
+                    theme: theme,
+                    layout: layout,
+                    show: $showMatchyGridOverlay,
+                    gridSize: Binding(
+                        get: { MatchyGridSize(rawValue: engine.matchyGridSize) ?? .small },
+                        set: { engine.setMatchyGridSize($0.dotCount) }
+                    ),
+                    buttonFrame: matchyGridPillFrame
+                )
+            }
+
+            // Classic/Boppy high score overlay
+            if showHighScoreOverlay {
+                HighScoreOverlay(
+                    theme: theme,
+                    layout: layout,
+                    gameMode: gameMode,
+                    highScores: gameMode == .boppy ? highs.boppyBest : highs.best,
+                    currentDuration: selectedTime,
+                    show: $showHighScoreOverlay,
+                    buttonFrame: highScorePillFrame
+                )
+            }
+
+            // Classic/Boppy duration picker overlay
+            if showDurationOverlay {
+                DurationPickerOverlay(
+                    theme: theme,
+                    layout: layout,
+                    gameMode: gameMode,
+                    selectedDuration: $selectedTime,
+                    show: $showDurationOverlay,
+                    buttonFrame: durationPillFrame
+                )
+            }
+
+            // Matchy turn change card (multiplayer only)
+            if engine.matchyShowTurnCard {
+                MatchyTurnCard(
+                    theme: theme,
+                    currentPlayer: engine.matchyCurrentPlayer,
+                    onDismiss: { engine.dismissMatchyTurnCard() }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func gameSetupPickerView(layout: LayoutController, theme: Theme) -> some View {
+        GameSetupPicker(
+            theme: theme,
+            layout: layout,
+            show: $showSetupPicker,
+            selectedMode: $gameMode,
+            selectedTime: $selectedTime,
+            buttonFrame: setTimeButtonFrame,
+            onConfirm: { handleSetupConfirm() },
+            onLockedModeTap: { lockedMode in
+                // Show instruction card for the locked mode (as preview)
+                previewingLockedMode = lockedMode
+                withAnimation(.easeOut(duration: 0.25)) {
+                    showInstructionCard = true
+                }
+            }
+        )
+    }
+
+    private func handleSetupConfirm() {
+        if !ProcessInfo.processInfo.isPreview {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+        let oldMode = engine.currentMode
+        let modeChanged = gameMode != oldMode
+
+        if modeChanged {
+            AnalyticsManager.shared.trackGameModeChange(from: oldMode, to: gameMode)
+            withAnimation(.easeInOut(duration: 0.3)) { scoreboardExpanded = false }
+            // Reset score when switching modes
+            engine.score = 0
+
+            // Load the saved time for Classic/Boppy when switching to them
+            if gameMode == .classic || gameMode == .boppy {
+                let savedTime = UserDefaults.standard.integer(forKey: "poppy.roundLength")
+                if savedTime > 0 && gameMode.availableDurations.contains(savedTime) {
+                    selectedTime = savedTime
+                } else {
+                    selectedTime = 30  // Default
                 }
             }
         }
+
+        if gameMode == .classic || gameMode == .daily {
+            let oldDuration = engine.roundLength
+            if oldDuration != selectedTime {
+                AnalyticsManager.shared.trackTimeDurationChange(from: oldDuration, to: selectedTime)
+            }
+        }
+        engine.setGameMode(gameMode)
+
+        // Set roundLength and remaining based on mode
+        if gameMode == .daily {
+            let dailyDuration = HighscoreStore.dailyDurationForToday()
+            engine.roundLength = dailyDuration
+            engine.remaining = Double(dailyDuration)
+        } else {
+            engine.roundLength = selectedTime
+            engine.remaining = Double(selectedTime)
+        }
+        if !hasChangedTime { hasChangedTime = true }
+    }
+
+    @ViewBuilder
+    private func confettiOverlay() -> some View {
+        if showConfetti {
+            ConfettiView()
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .compositingGroup()
+                .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder
+    private func menuOverlay(theme: Theme) -> some View {
+        MenuDrawer(
+            theme: theme,
+            isOpen: $showMenu,
+            showThemeDrawer: $showThemeDrawer
+        )
+        .environmentObject(highs)
+        .zIndex(100)
+    }
+
+    @ViewBuilder
+    private func themeDrawerOverlay(theme: Theme) -> some View {
+        ThemeDrawer(
+            theme: theme,
+            isOpen: $showThemeDrawer,
+            onLockedThemeTap: {
+                // Show themes unlock modal
+                unlockModalType = .themes
+                withAnimation(.easeOut(duration: 0.25)) {
+                    showUnlockModal = true
+                }
+            }
+        )
+        .zIndex(101)
     }
     
     private func triggerThemeTransition() {
@@ -447,51 +1126,11 @@ struct ContentView: View {
         transitionOldTheme = previous
         isTransitioning = true
     }
-}
 
-// MARK: - Tutorial Overlay System
-
-struct TutorialOverlaySystem: View {
-    let theme: Theme
-    let layout: LayoutController
-    let startButtonFrame: CGRect
-    let themeButtonFrame: CGRect
-    let timeButtonFrame: CGRect
-    let menuButtonFrame: CGRect
-    
-    @Binding var hasCompletedFirstGame: Bool
-    @Binding var hasCompletedFirstRound: Bool
-    @Binding var hasChangedTheme: Bool
-    @Binding var hasChangedTime: Bool
-    @Binding var hasOpenedMenu: Bool
-    @Binding var showTimePicker: Bool
-    @Binding var showMenu: Bool
-    
-    private var tutorialActive: Bool {
-        !UserDefaults.standard.tutorialCompleted &&
-        ((!hasCompletedFirstGame) ||
-         (hasCompletedFirstRound && (!hasChangedTheme || !hasChangedTime || !hasOpenedMenu)))
-    }
-    
-    var body: some View {
-        // Only render TutorialManager - it handles its own overlay with spotlight cutout
-        if tutorialActive {
-            TutorialManager(
-                theme: theme,
-                layout: layout,
-                startButtonFrame: startButtonFrame,
-                themeButtonFrame: themeButtonFrame,
-                timeButtonFrame: timeButtonFrame,
-                menuButtonFrame: menuButtonFrame,
-                hasCompletedFirstGame: $hasCompletedFirstGame,
-                hasCompletedFirstRound: $hasCompletedFirstRound,
-                hasChangedTheme: $hasChangedTheme,
-                hasChangedTime: $hasChangedTime,
-                hasOpenedMenu: $hasOpenedMenu,
-                showTimePicker: $showTimePicker,
-                showMenu: $showMenu
-            )
-            .zIndex(9999)  // Above everything else
+    private func requestAppReview() {
+        guard !ProcessInfo.processInfo.isPreview else { return }
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            SKStoreReviewController.requestReview(in: windowScene)
         }
     }
 }

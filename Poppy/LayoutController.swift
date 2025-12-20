@@ -57,8 +57,32 @@ struct LayoutController {
     var baseRadius: CGFloat { 12 * scale }
     
     /// Standard stroke width (doesn't scale - stays crisp)
-    let strokeWidth: CGFloat = 2.5
-    
+    // MARK: - Standardized Stroke Width
+    /// All strokes use 2pt for consistency
+    let strokeWidth: CGFloat = 2
+
+    // MARK: - Standardized Corner Radii
+    /// Derived from baseRadius for consistent proportions
+    var cornerRadiusSmall: CGFloat { baseRadius }           // 12pt - pills, small buttons
+    var cornerRadiusMedium: CGFloat { baseRadius * 1.4 }    // ~17pt - cards, containers
+    var cornerRadiusLarge: CGFloat { baseRadius * 1.8 }     // ~22pt - scoreboards, modals
+
+    // MARK: - Standardized Card Heights
+    /// Use these for consistent header/card sizing across modes
+    var cardHeightSmall: CGFloat { unit * 11 }              // 88pt - simple score cards (Tappy, Zoomy, Seeky)
+    var cardHeightMedium: CGFloat { unit * 14 }             // 112pt - cards with 2 stats
+    var cardHeightLarge: CGFloat { unit * 18 }              // 144pt - Daily card, rich content
+
+    // MARK: - Standardized Spacing
+    /// Common spacing values for consistent layouts
+    var spacingTight: CGFloat { unit * 1 }                  // 8pt - within components
+    var spacingNormal: CGFloat { unit * 2 }                 // 16pt - between related items
+    var spacingLoose: CGFloat { unit * 3 }                  // 24pt - between sections
+
+    // MARK: - Lives Display
+    var livesHeartSize: CGFloat { baseText * 1.8 }          // ~29pt - consistent heart size
+    var livesSpacing: CGFloat { unit * 1.5 }                // 12pt - space between hearts
+
     // MARK: - Content Layout
     
     /// Detect larger iPads (12.9" Pro has width of 1024pt in portrait)
@@ -121,7 +145,7 @@ struct LayoutController {
     var scoreboardCollapsedHeight: CGFloat { unit * 8 }
     var scoreboardCornerRadius: CGFloat { baseRadius * 1.8 }
     var scoreboardLayerSpacing: CGFloat { -(unit * 1.75) }  // Negative for 3D offset
-    var scoreboardStrokeWidth: CGFloat { 3 }
+    var scoreboardStrokeWidth: CGFloat { 2 }
     
     var scoreboardTopPadding: CGFloat {
         if isIPad {
@@ -194,7 +218,7 @@ struct LayoutController {
         if isIPad {
             return unit * 14  // More space to push dots up
         }
-        return unit * 2
+        return unit * 4  // Push dots up from START button
     }
     
     var dotSpacingHorizontal: CGFloat { unit * 2.25 }
@@ -223,7 +247,7 @@ struct LayoutController {
     var startButtonHeight: CGFloat { unit * 12 }
     var startButtonCornerRadius: CGFloat { baseRadius * 1.7 }
     var startButtonLayerOffset: CGFloat { unit * 1.5 }
-    var startButtonStrokeWidth: CGFloat { 3 }
+    var startButtonStrokeWidth: CGFloat { 2 }
     var startButtonHorizontalPadding: CGFloat { unit * 2 }
     var startButtonBottomPadding: CGFloat {
         if isIPad {
@@ -232,8 +256,8 @@ struct LayoutController {
         return unit * 0.6
     }
     var startButtonTitleSize: CGFloat { baseText * 2.25 }
-    var startButtonGlowRadius: CGFloat { unit * 2 }
-    let startButtonGlowOpacity: Double = 0.4
+    var startButtonGlowRadius: CGFloat { unit * 1 }
+    let startButtonGlowOpacity: Double = 0.25
     
     // ============================================
     // MARK: - Initialization
@@ -245,6 +269,20 @@ struct LayoutController {
         self.safeTop = geo.safeAreaInsets.top
         self.safeBottom = geo.safeAreaInsets.bottom
         self.isIPad = UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    /// Preview-friendly initializer with explicit values
+    init(screenWidth: CGFloat, screenHeight: CGFloat, safeTop: CGFloat, safeBottom: CGFloat, isIPad: Bool) {
+        self.screenWidth = screenWidth
+        self.screenHeight = screenHeight
+        self.safeTop = safeTop
+        self.safeBottom = safeBottom
+        self.isIPad = isIPad
+    }
+
+    /// Convenience for SwiftUI previews
+    static var preview: LayoutController {
+        LayoutController(screenWidth: 393, screenHeight: 852, safeTop: 59, safeBottom: 34, isIPad: false)
     }
     
     // ============================================

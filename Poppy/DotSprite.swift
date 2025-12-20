@@ -17,7 +17,10 @@ struct DotSprite: View {
     let isPressed: Bool    // pushed in
     let bounceID: Int      // Trigger for bounce animation
     let idleFlashID: Int   // Trigger for idle tap flash
-    
+    var matchyColorHex: String? = nil  // Matchy mode color (nil = not in matchy or face-down)
+    var matchySymbol: String? = nil    // Matchy mode symbol (nil = not in matchy or face-down)
+    var seekyBaseColor: Color? = nil   // Seeky mode color override (nil = use theme accent)
+
     // Breathing animation state
     @State private var breathingIntensity: Double = 0.0
     @State private var breathingDelay: Double = 0.0
@@ -30,6 +33,28 @@ struct DotSprite: View {
         isPressed ? 0 : -layout.dotLayerOffset
     }
 
+    // The accent color to use (seekyBaseColor overrides theme.accent for Seeky mode)
+    private var accentColor: Color {
+        seekyBaseColor ?? theme.accent
+    }
+
+    // Determine dot fill color based on state
+    private var dotFillColor: Color {
+        // Matchy mode: show color if revealed, otherwise neutral grey
+        if let hex = matchyColorHex {
+            return Color(hex: hex)
+        }
+
+        // Normal modes
+        if isPressed {
+            return Color(hex: "#909090")  // Pressed: noticeably darker grey
+        }
+        if isActive || idleFlash {
+            return accentColor  // Active OR flashing: full bright accent (or Seeky color)
+        }
+        return Color(hex: "#d7d7d7")  // Inactive: light grey
+    }
+
     var body: some View {
         GeometryReader { geo in
             let dotSize = geo.size.width - (layout.dotPadding * 2)
@@ -39,11 +64,11 @@ struct DotSprite: View {
             ZStack {
                 // Soft accent glow only when active AND not pressed
                 Circle()
-                    .fill(theme.accent)
+                    .fill(accentColor)
                     .opacity(isActive && !isPressed ? (layout.dotGlowOpacity + breathingIntensity * 0.08) : 0)
                     .blur(radius: layout.dotGlowRadius)
                     .padding(layout.dotPadding)
-                
+
                 // Bottom circle (darker) - shows accent tint ONLY when active
                 Circle()
                     .fill(isActive ?
@@ -54,14 +79,14 @@ struct DotSprite: View {
                         Group {
                             if isActive {
                                 Circle()
-                                    .fill(theme.accent)
+                                    .fill(accentColor)
                                     .opacity(0.4)  // Subtle tint over dark grey base
                             }
                         }
                     )
                     .overlay(
                         Circle()
-                            .stroke(Color(hex: "#3a3a3a"), lineWidth: layout.dotStrokeWidth)
+                            .stroke(Color(hex: "#3a3a3a"), lineWidth: 2)
                     )
                     .shadow(color: theme.shadow.opacity(0.25), radius: 4, x: 0, y: 2)
                     .padding(layout.dotPadding)
@@ -103,14 +128,21 @@ struct DotSprite: View {
                 
                 // Top circle (lighter) - shows active/inactive/pressed states clearly
                 Circle()
-                    .fill(
-                        isPressed ? Color(hex: "#c0c0c0") :       // Pressed: darker grey
-                        (isActive || idleFlash) ? theme.accent :  // Active OR flashing: full bright accent
-                        Color(hex: "#d7d7d7")                     // Inactive: light grey
+                    .fill(dotFillColor)
+                    .animation(.easeInOut(duration: 0.2), value: matchyColorHex)
+                    .overlay(
+                        // Matchy symbol overlay
+                        Group {
+                            if let symbol = matchySymbol {
+                                Image(systemName: symbol)
+                                    .font(.system(size: dotSize * 0.38, weight: .bold))
+                                    .foregroundStyle(Color(hex: "#3a3a3a").opacity(0.5))
+                            }
+                        }
                     )
                     .overlay(
                         Circle()
-                            .stroke(Color(hex: "#3a3a3a"), lineWidth: layout.dotStrokeWidth)
+                            .stroke(Color(hex: "#3a3a3a"), lineWidth: 2)
                     )
                     .padding(layout.dotPadding)
                     .offset(y: currentSpacing)

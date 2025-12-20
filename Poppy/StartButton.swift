@@ -28,14 +28,14 @@ struct StartButton: View {
     
     private var currentTint: Color {
         if isVisuallyPressed {
-            return Color(hex: "#E5E5E5") // Light Platinum Grey
+            return theme.accent.darker(by: 0.12)
         } else {
             return theme.accent
         }
     }
     
     private var buttonWidth: CGFloat {
-        layout.startButtonWidth * 0.75
+        layout.startButtonWidth * 0.84  // Middle ground between full width and 68%
     }
     
     private var isVisuallyPressed: Bool {
@@ -49,10 +49,10 @@ struct StartButton: View {
             // ------------------------------------------------
             RoundedRectangle(cornerRadius: layout.startButtonCornerRadius, style: .continuous)
                 .fill(Color(hex: "#7d7d7d"))
-                .paperTint(currentTint, opacity: 0.95, brightness: 0.06)
+                .paperTint(theme.accent, opacity: 0.95, brightness: 0.06)
                 .overlay(
                     RoundedRectangle(cornerRadius: layout.startButtonCornerRadius, style: .continuous)
-                        .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: layout.startButtonStrokeWidth)
+                        .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
                 )
                 .frame(
                     width: buttonWidth,
@@ -83,7 +83,7 @@ struct StartButton: View {
                 
                 // C. Border (Top)
                 RoundedRectangle(cornerRadius: layout.startButtonCornerRadius, style: .continuous)
-                    .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: layout.startButtonStrokeWidth)
+                    .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
             }
             .frame(
                 width: buttonWidth,

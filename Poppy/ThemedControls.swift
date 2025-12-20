@@ -31,7 +31,7 @@ struct ThemedCard<Content: View>: View {
                         .fill(.white.opacity(0.10))
                         .padding(3)
                     RoundedRectangle(cornerRadius: corner, style: .continuous)
-                        .stroke(.black.opacity(0.25), lineWidth: 1.25)
+                        .stroke(.black.opacity(0.25), lineWidth: 2)
                 }
             )
             

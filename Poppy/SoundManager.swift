@@ -27,7 +27,6 @@ final class SoundManager {
     // Audio players for each sound effect (optional - may not load)
     private var popPlayer: AVAudioPlayer?
     private var popUpPlayer: AVAudioPlayer?
-    private var popAllPlayer: AVAudioPlayer?
     private var countdownPlayer: AVAudioPlayer?
     private var gameOverPlayer: AVAudioPlayer?
     private var newHighPlayer: AVAudioPlayer?
@@ -96,7 +95,6 @@ final class SoundManager {
         let loadedCount = [
             preparePlayer(named: "pop.wav", for: &popPlayer),
             preparePlayer(named: "pop_up.wav", for: &popUpPlayer, enableRate: true),  // Enable rate control
-            preparePlayer(named: "pop_all.wav", for: &popAllPlayer, enableRate: true),
             preparePlayer(named: "countdown.wav", for: &countdownPlayer),
             preparePlayer(named: "game_over.wav", for: &gameOverPlayer),
             preparePlayer(named: "new_high.wav", for: &newHighPlayer),
@@ -116,7 +114,7 @@ final class SoundManager {
         customSoundsAvailable = loadedCount >= 5
         
         if customSoundsAvailable {
-            print("✅ Custom sounds loaded successfully (\(loadedCount)/11)")
+            print("✅ Custom sounds loaded successfully (\(loadedCount)/10)")
         } else {
             print("⚠️ Custom sounds not available, using system sounds fallback")
         }

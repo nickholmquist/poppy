@@ -1,0 +1,125 @@
+{
+  "identifier" : "Products",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "5.99",
+      "familyShareable" : false,
+      "internalID" : "poppy_plus",
+      "localizations" : [
+        {
+          "description" : "Unlock all modes, themes, and remove ads",
+          "displayName" : "Poppy Plus",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.poppy.plus",
+      "referenceName" : "Poppy Plus",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "game_modes_bundle",
+      "localizations" : [
+        {
+          "description" : "Unlock Zoomy, Tappy, and Seeky",
+          "displayName" : "Game Modes",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.poppy.modes",
+      "referenceName" : "Game Modes Bundle",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "premium_themes_bundle",
+      "localizations" : [
+        {
+          "description" : "Unlock all 11 premium themes",
+          "displayName" : "Premium Themes",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.poppy.themes",
+      "referenceName" : "Premium Themes Bundle",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "remove_ads",
+      "localizations" : [
+        {
+          "description" : "Remove all advertisements",
+          "displayName" : "Remove Ads",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.poppy.removeads",
+      "referenceName" : "Remove Ads",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "tip_small",
+      "localizations" : [
+        {
+          "description" : "A small tip to support the developer",
+          "displayName" : "Small Tip",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.poppy.tip.small",
+      "referenceName" : "Small Tip",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "tip_medium",
+      "localizations" : [
+        {
+          "description" : "A medium tip to support the developer",
+          "displayName" : "Medium Tip",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.poppy.tip.medium",
+      "referenceName" : "Medium Tip",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "tip_large",
+      "localizations" : [
+        {
+          "description" : "A large tip to support the developer",
+          "displayName" : "Large Tip",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.poppy.tip.large",
+      "referenceName" : "Large Tip",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6740261428",
+    "_developerTeamID" : "K3SF47VSRA",
+    "_lastSynchronizedDate" : 757697024.93784201
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

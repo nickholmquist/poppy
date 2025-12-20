@@ -31,7 +31,7 @@ struct SetTimeButton: View {
                 .padding(.vertical, layout.setTimeButtonPaddingV)
                 .background(
                     Capsule()
-                        .strokeBorder(theme.textDark.opacity(0.3), lineWidth: layout.setTimeButtonStrokeWidth)
+                        .strokeBorder(theme.textDark.opacity(0.3), lineWidth: 2)
                 )
                 .opacity(isEnabled ? 1.0 : 0.6)
                 .animation(.easeInOut(duration: 0.3), value: isEnabled)
