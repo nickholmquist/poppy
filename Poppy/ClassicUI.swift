@@ -241,7 +241,6 @@ struct ClassicHeader: View {
         }
         .frame(height: layout.button3DTotalHeight, alignment: .top)
         .frame(maxWidth: .infinity)
-        .animation(.easeOut(duration: 0.15), value: topLayerColor)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: showTimeScoreOverlay)
         .simultaneousGesture(
