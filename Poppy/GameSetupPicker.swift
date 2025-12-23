@@ -18,6 +18,7 @@ struct GameSetupPicker: View {
     let buttonFrame: CGRect
     let onConfirm: () -> Void
     var onLockedModeTap: ((GameMode) -> Void)?
+    var isDailyCompleted: Bool = false
 
     // Animation phases
     @State private var phase: AnimationPhase = .collapsed
@@ -45,8 +46,7 @@ struct GameSetupPicker: View {
         let modeSectionLabel: CGFloat = 28
         let modeGridHeight: CGFloat = 4 * 72 + 3 * 8  // 4 rows of 72pt + 8pt gaps
         let timeSectionHeight: CGFloat = activeMode.showsTimePicker ? (28 + timeSectionGridHeight + 12) : 0
-        let confirmHeight: CGFloat = 64
-        return headerHeight + modeSectionLabel + modeGridHeight + timeSectionHeight + confirmHeight + 16
+        return headerHeight + modeSectionLabel + modeGridHeight + timeSectionHeight + 16
     }
 
     // Time grid height varies by mode
@@ -155,25 +155,8 @@ struct GameSetupPicker: View {
 
                                 timeGrid
                                     .padding(.horizontal, 12)
-                                    .padding(.bottom, 4)
+                                    .padding(.bottom, 12)
                             }
-
-                            // Confirm button
-                            Button(action: confirmSelection) {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 24, weight: .bold))
-                                    .foregroundStyle(theme.textOnAccent)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 48)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 15, style: .continuous)
-                                            .fill(theme.accent)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.horizontal, 12)
-                            .padding(.top, 16)
-                            .padding(.bottom, 8)
                         }
                         .transition(.opacity)
                     }
@@ -282,6 +265,30 @@ struct GameSetupPicker: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(6)
             }
+
+            // Daily completion indicator
+            if mode == .daily && !isLocked {
+                if isDailyCompleted {
+                    // Completed checkmark
+                    ZStack {
+                        Circle()
+                            .fill(Color(hex: "#5DBB63"))
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(6)
+                } else {
+                    // Empty circle for incomplete
+                    Circle()
+                        .strokeBorder(theme.textDark.opacity(0.3), lineWidth: 2)
+                        .frame(width: 22, height: 22)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .padding(6)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
         .frame(height: 72)
@@ -362,18 +369,29 @@ struct GameSetupPicker: View {
     }
 
     private func selectMode(_ mode: GameMode) {
-        guard mode != activeMode else { return }
-        SoundManager.shared.play(.menu)
-        HapticsManager.shared.light()
+        // If tapping already-selected mode, just close the picker
+        if mode == activeMode {
+            SoundManager.shared.play(.menu)
+            HapticsManager.shared.light()
+            dismissPicker()
+            return
+        }
+        SoundManager.shared.play(.popUp)
+        HapticsManager.shared.medium()
 
         // Update time to mode's default if current time isn't available
         if mode.showsTimePicker && !mode.availableDurations.contains(localTime) {
             localTime = mode.defaultDuration
         }
 
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            localMode = mode
-        }
+        // Commit immediately
+        localMode = mode
+        selectedMode = mode
+        selectedTime = localTime
+        mode.save()
+
+        onConfirm()
+        dismissPicker()
     }
 
     private func selectTime(_ time: Int) {
@@ -381,18 +399,6 @@ struct GameSetupPicker: View {
         SoundManager.shared.play(.timeSelect)
         HapticsManager.shared.light()
         localTime = time
-    }
-
-    private func confirmSelection() {
-        SoundManager.shared.play(.popUp)
-        HapticsManager.shared.medium()
-
-        selectedMode = activeMode
-        selectedTime = localTime
-        activeMode.save()
-
-        onConfirm()
-        dismissPicker()
     }
 
     private func dismissPicker() {

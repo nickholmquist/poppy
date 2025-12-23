@@ -2,8 +2,7 @@
 //  EndGameButton.swift
 //  Poppy
 //
-//  End game button that takes over START button position
-//  Splits into red/green confirmation when tapped
+//  End game button + popup overlay confirmation
 //
 
 import SwiftUI
@@ -11,10 +10,9 @@ import SwiftUI
 struct EndGameButton: View {
     let theme: Theme
     let layout: LayoutController
-    let onConfirmEnd: () -> Void
+    @Binding var showConfirmation: Bool
 
     @State private var isPressed = false
-    @State private var showConfirmation = false
 
     private var buttonWidth: CGFloat {
         layout.startButtonWidth * 0.84  // Match START button width
@@ -33,31 +31,6 @@ struct EndGameButton: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            // "End Match?" label slides up during confirmation
-            if showConfirmation {
-                Text("End Match?")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(theme.textDark)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .padding(.bottom, 4)
-            }
-
-            // Main button area - instant swap, no opacity transition
-            ZStack {
-                if showConfirmation {
-                    splitConfirmationView
-                } else {
-                    endButtonView
-                }
-            }
-        }
-        .animation(nil, value: showConfirmation)
-    }
-
-    // MARK: - END Button (inactive style)
-
-    private var endButtonView: some View {
         ZStack {
             // Bottom layer (depth) - darker gray for inactive
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -104,68 +77,164 @@ struct EndGameButton: View {
         )
         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isPressed)
     }
+}
 
-    // MARK: - Split Confirmation View
+// MARK: - End Game Confirmation Overlay
 
-    private var splitConfirmationView: some View {
-        HStack(spacing: 0) {
-            // Cancel (X) - Red left half
-            SplitHalfButton(
-                cornerRadius: cornerRadius,
-                strokeWidth: strokeWidth,
-                isLeftHalf: true,
-                fillColor: Color(hex: "#E85D75"),
-                depthColor: Color(hex: "#a84455"),
-                iconName: "xmark",
-                layerOffset: layerOffset
-            ) {
-                SoundManager.shared.play(.pop)
-                showConfirmation = false
-            }
+struct EndGameOverlay: View {
+    let theme: Theme
+    let layout: LayoutController
+    @Binding var show: Bool
+    let onConfirm: () -> Void
 
-            // Confirm (checkmark) - Green right half
-            SplitHalfButton(
-                cornerRadius: cornerRadius,
-                strokeWidth: strokeWidth,
-                isLeftHalf: false,
-                fillColor: Color(hex: "#5DBB63"),
-                depthColor: Color(hex: "#3d8c4a"),
-                iconName: "checkmark",
-                layerOffset: layerOffset
-            ) {
-                SoundManager.shared.play(.popUp)
-                HapticsManager.shared.medium()
-                showConfirmation = false
-                onConfirmEnd()
+    @State private var phase: AnimationPhase = .appearing
+
+    enum AnimationPhase {
+        case appearing
+        case visible
+        case dismissing
+    }
+
+    private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
+    private var layerOffset: CGFloat { layout.button3DLayerOffset }
+
+    private var dimOpacity: Double {
+        phase == .visible ? 0.4 : 0
+    }
+
+    private var cardScale: CGFloat {
+        phase == .visible ? 1.0 : 0.8
+    }
+
+    private var cardOpacity: Double {
+        phase == .visible ? 1.0 : 0
+    }
+
+    var body: some View {
+        ZStack {
+            // Dimmed background
+            Color.black
+                .opacity(dimOpacity)
+                .ignoresSafeArea()
+                .onTapGesture { dismiss(confirmed: false) }
+                .animation(.easeOut(duration: 0.2), value: phase)
+
+            // Centered confirmation card
+            confirmationCard
+                .scaleEffect(cardScale)
+                .opacity(cardOpacity)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: phase)
+        }
+        .ignoresSafeArea()
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                phase = .visible
             }
         }
-        .frame(width: buttonWidth, height: layout.startButtonHeight)
+    }
+
+    private var confirmationCard: some View {
+        VStack(spacing: 24) {
+            // Title
+            Text("End Match?")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(theme.textDark)
+
+            // Buttons row
+            HStack(spacing: 20) {
+                // Cancel (X) - Red
+                ConfirmButton(
+                    cornerRadius: cornerRadius,
+                    layerOffset: layerOffset,
+                    fillColor: Color(hex: "#E85D75"),
+                    depthColor: Color(hex: "#a84455"),
+                    iconName: "xmark"
+                ) {
+                    SoundManager.shared.play(.pop)
+                    dismiss(confirmed: false)
+                }
+
+                // Confirm (checkmark) - Green
+                ConfirmButton(
+                    cornerRadius: cornerRadius,
+                    layerOffset: layerOffset,
+                    fillColor: Color(hex: "#5DBB63"),
+                    depthColor: Color(hex: "#3d8c4a"),
+                    iconName: "checkmark"
+                ) {
+                    SoundManager.shared.play(.popUp)
+                    HapticsManager.shared.medium()
+                    dismiss(confirmed: true)
+                }
+            }
+        }
+        .padding(32)
+        .background(
+            RoundedRectangle(cornerRadius: cornerRadius + 4, style: .continuous)
+                .fill(theme.background)
+                .shadow(color: Color.black.opacity(0.25), radius: 20, y: 10)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius + 4, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.1), lineWidth: 1)
+        )
+    }
+
+    private func dismiss(confirmed: Bool) {
+        phase = .dismissing
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            show = false
+            if confirmed {
+                onConfirm()
+            }
+        }
     }
 }
 
-// MARK: - Split Half Button with Layered Press Animation
+// MARK: - Confirmation Button (3D style)
 
-private struct SplitHalfButton: View {
+private struct ConfirmButton: View {
     let cornerRadius: CGFloat
-    let strokeWidth: CGFloat
-    let isLeftHalf: Bool
+    let layerOffset: CGFloat
     let fillColor: Color
     let depthColor: Color
     let iconName: String
-    let layerOffset: CGFloat
     let action: () -> Void
 
     @State private var isPressed = false
 
-    var body: some View {
-        ZStack {
-            // Bottom depth layer (stays in place)
-            depthLayer
+    private let buttonSize: CGFloat = 80
 
-            // Top surface layer (moves down when pressed)
-            surfaceLayer
-                .offset(y: isPressed ? 0 : -layerOffset)
+    var body: some View {
+        ZStack(alignment: .top) {
+            // Bottom layer (depth)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(depthColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
+                )
+                .frame(width: buttonSize, height: buttonSize)
+                .offset(y: layerOffset)
+
+            // Top layer (surface)
+            ZStack {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(fillColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
+                    )
+
+                Image(systemName: iconName)
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: buttonSize, height: buttonSize)
+            .offset(y: isPressed ? layerOffset : 0)
         }
+        .frame(width: buttonSize, height: buttonSize + layerOffset, alignment: .top)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -184,104 +253,36 @@ private struct SplitHalfButton: View {
         )
         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isPressed)
     }
+}
 
-    @ViewBuilder
-    private var depthLayer: some View {
-        if isLeftHalf {
-            UnevenRoundedRectangle(
-                topLeadingRadius: cornerRadius,
-                bottomLeadingRadius: cornerRadius,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: 0
-            )
-            .fill(depthColor)
-            .overlay(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: cornerRadius,
-                    bottomLeadingRadius: cornerRadius,
-                    bottomTrailingRadius: 0,
-                    topTrailingRadius: 0
-                )
-                .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: strokeWidth)
-            )
-        } else {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: cornerRadius,
-                topTrailingRadius: cornerRadius
-            )
-            .fill(depthColor)
-            .overlay(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0,
-                    bottomLeadingRadius: 0,
-                    bottomTrailingRadius: cornerRadius,
-                    topTrailingRadius: cornerRadius
-                )
-                .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: strokeWidth)
-            )
-        }
-    }
+#Preview("End Game Overlay") {
+    @Previewable @State var showOverlay = true
 
-    @ViewBuilder
-    private var surfaceLayer: some View {
-        ZStack {
-            if isLeftHalf {
-                UnevenRoundedRectangle(
-                    topLeadingRadius: cornerRadius,
-                    bottomLeadingRadius: cornerRadius,
-                    bottomTrailingRadius: 0,
-                    topTrailingRadius: 0
-                )
-                .fill(fillColor)
+    ZStack {
+        Color(hex: "#F9F6EC")
+            .ignoresSafeArea()
 
-                UnevenRoundedRectangle(
-                    topLeadingRadius: cornerRadius,
-                    bottomLeadingRadius: cornerRadius,
-                    bottomTrailingRadius: 0,
-                    topTrailingRadius: 0
-                )
-                .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: strokeWidth)
-
-                // Center divider line on right edge
-                HStack {
-                    Spacer()
-                    Rectangle()
-                        .fill(Color(hex: "#3a3a3a"))
-                        .frame(width: strokeWidth)
-                }
-            } else {
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0,
-                    bottomLeadingRadius: 0,
-                    bottomTrailingRadius: cornerRadius,
-                    topTrailingRadius: cornerRadius
-                )
-                .fill(fillColor)
-
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0,
-                    bottomLeadingRadius: 0,
-                    bottomTrailingRadius: cornerRadius,
-                    topTrailingRadius: cornerRadius
-                )
-                .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: strokeWidth)
+        if showOverlay {
+            EndGameOverlay(
+                theme: .daylight,
+                layout: .preview,
+                show: $showOverlay
+            ) {
+                print("End game confirmed")
             }
-
-            Image(systemName: iconName)
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
         }
     }
 }
 
-#Preview("End Button - Normal") {
-    EndGameButton(
-        theme: .daylight,
-        layout: .preview
-    ) {
-        print("End game confirmed")
+#Preview("End Button") {
+    @Previewable @State var showConfirm = false
+
+    VStack {
+        EndGameButton(
+            theme: .daylight,
+            layout: .preview,
+            showConfirmation: $showConfirm
+        )
     }
     .padding()
     .background(Color(hex: "#F9F6EC"))

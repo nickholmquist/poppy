@@ -49,8 +49,11 @@ struct DotSprite: View {
         if isPressed {
             return Color(hex: "#909090")  // Pressed: noticeably darker grey
         }
-        if isActive || idleFlash {
-            return accentColor  // Active OR flashing: full bright accent (or Seeky color)
+        if isActive {
+            return accentColor  // Active: full bright accent (or Seeky color)
+        }
+        if idleFlash {
+            return accentColor.darker(by: 0.05)  // Idle flash: slightly darker (matches pressed UI elements)
         }
         return Color(hex: "#d7d7d7")  // Inactive: light grey
     }

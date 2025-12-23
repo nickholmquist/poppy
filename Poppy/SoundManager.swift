@@ -36,6 +36,12 @@ final class SoundManager {
     private var timeSelectPlayer: AVAudioPlayer?
     private var scoreboardExpandPlayer: AVAudioPlayer?
     private var scoreboardCollapsePlayer: AVAudioPlayer?
+
+    // Simon sounds for Copy mode (4 different tones)
+    private var simonRedPlayer: AVAudioPlayer?
+    private var simonBluePlayer: AVAudioPlayer?
+    private var simonGreenPlayer: AVAudioPlayer?
+    private var simonYellowPlayer: AVAudioPlayer?
     
     // ========================================
     // 🎛️ SOUND CUSTOMIZATION CONTROLS
@@ -109,7 +115,13 @@ final class SoundManager {
         if popPlayer != nil {
             menuPlayer = popPlayer
         }
-        
+
+        // Load Simon sounds for Copy mode
+        preparePlayer(named: "simon_red.wav", for: &simonRedPlayer)
+        preparePlayer(named: "simon_blue.wav", for: &simonBluePlayer)
+        preparePlayer(named: "simon_green.wav", for: &simonGreenPlayer)
+        preparePlayer(named: "simon_yellow.wav", for: &simonYellowPlayer)
+
         // Consider custom sounds available if at least half loaded
         customSoundsAvailable = loadedCount >= 5
         
@@ -282,6 +294,28 @@ final class SoundManager {
             player.currentTime = 0
             player.play()
             return true
+        }
+    }
+
+    /// Play a Simon sound for Copy mode by dot index (0=red, 1=blue, 2=green, 3=yellow)
+    func playSimon(_ index: Int) {
+        guard soundEnabled else { return }
+
+        let player: AVAudioPlayer? = switch index {
+        case 0: simonRedPlayer
+        case 1: simonBluePlayer
+        case 2: simonGreenPlayer
+        case 3: simonYellowPlayer
+        default: nil
+        }
+
+        if let player = player {
+            player.volume = 1.0
+            player.currentTime = 0
+            player.play()
+        } else {
+            // Fallback to regular pop sound
+            play(.pop)
         }
     }
 }

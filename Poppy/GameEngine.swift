@@ -286,7 +286,9 @@ final class GameEngine: ObservableObject {
         gameOver = false
 
         // Set high score threshold based on mode
-        highScoreThreshold = highscoreStore?.getBest(for: currentMode, duration: roundLength) ?? 0
+        // Lives-based modes (Zoomy, Tappy, Seeky) use duration: 0 since they don't have timed variants
+        let durationForHighScore = currentMode.startingLives > 0 ? 0 : roundLength
+        highScoreThreshold = highscoreStore?.getBest(for: currentMode, duration: durationForHighScore) ?? 0
         isNewHighScore = false
 
         // Set starting lives for modes that use them
@@ -516,7 +518,7 @@ final class GameEngine: ObservableObject {
                         self.active = [dotIndex]
                     }
                 }
-                self.soundManager.play(.pop)
+                self.soundManager.playSimon(dotIndex)
 
                 // Hold lit (speed adjusted)
                 try? await Task.sleep(nanoseconds: holdDuration)
@@ -545,8 +547,8 @@ final class GameEngine: ObservableObject {
         let expectedIndex = copySequence[copyPlayerIndex]
 
         if index == expectedIndex {
-            // Correct tap
-            soundManager.play(.pop)
+            // Correct tap - play the Simon tone for this dot
+            soundManager.playSimon(index)
             playBubblePopHaptic()
 
             // Flash the dot

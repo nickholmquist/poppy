@@ -43,12 +43,6 @@ struct ContentView: View {
     @State private var transitionOldTheme: Theme? = nil
     @State private var isThemeChangeLocked = false
 
-    // Matchy overlay state
-    @State private var showMatchyPlayersOverlay = false
-    @State private var showMatchyGridOverlay = false
-    @State private var matchyPlayersPillFrame: CGRect = .zero
-    @State private var matchyGridPillFrame: CGRect = .zero
-
     // Copy mode state
     @State private var copyDifficulty: CopyDifficulty = .classic
     @State private var copySlideDirection: CopySlideDirection = .none
@@ -60,14 +54,16 @@ struct ContentView: View {
     }
 
     // Classic/Boppy header overlay state
-    @State private var showHighScoreOverlay = false
-    @State private var showDurationOverlay = false
-    @State private var highScorePillFrame: CGRect = .zero
-    @State private var durationPillFrame: CGRect = .zero
+    @State private var showTimeScoreOverlay = false
+    @State private var timeScorePillFrame: CGRect = .zero
 
     // Instruction card state
     @State private var showInstructionCard = false
     @State private var previewingLockedMode: GameMode? = nil  // For showing locked mode preview
+
+    // End game confirmation overlay
+    @State private var showEndGameConfirmation = false
+    @State private var endedMatchEarly = false  // Skip celebration when ending early
 
     // IAP unlock modal states
     @State private var showUnlockModal = false
@@ -211,6 +207,10 @@ struct ContentView: View {
             }
         }
         .onChange(of: engine.isRunning) { _, running in
+            // Dismiss end confirmation if game ends naturally
+            if !running && showEndGameConfirmation {
+                showEndGameConfirmation = false
+            }
             if !running && !engine.gameOver {
                 // Register score based on current game mode
                 // For round-based modes, use the round number instead of score
@@ -222,7 +222,7 @@ struct ContentView: View {
                 }
                 let prev = highs.getBest(for: gameMode, duration: engine.roundLength)
                 highs.register(score: scoreToRegister, mode: gameMode, duration: engine.roundLength)
-                isNewHigh = scoreToRegister > prev
+                isNewHigh = scoreToRegister > prev && !endedMatchEarly
 
                 if isNewHigh {
                     // Play celebration sound with confetti
@@ -287,6 +287,7 @@ struct ContentView: View {
         .onChange(of: engine.gameOver) { _, isGameOver in
             // Register scores for modes that end with gameOver=true (lives-based modes)
             if isGameOver {
+                var gotNewHigh = false
                 switch gameMode {
                 case .copy:
                     highs.registerCopyScore(engine.copyRound, difficulty: copyDifficulty)
@@ -296,6 +297,7 @@ struct ContentView: View {
                     highs.register(score: score, mode: .tappy, duration: 0)
                     if score > prev {
                         isNewHigh = true
+                        gotNewHigh = true
                     }
                 case .zoomy:
                     let score = engine.score
@@ -303,6 +305,7 @@ struct ContentView: View {
                     highs.register(score: score, mode: .zoomy, duration: 0)
                     if score > prev {
                         isNewHigh = true
+                        gotNewHigh = true
                     }
                 case .seeky:
                     let score = engine.seekyRound
@@ -310,9 +313,34 @@ struct ContentView: View {
                     highs.register(score: score, mode: .seeky, duration: 0)
                     if score > prev {
                         isNewHigh = true
+                        gotNewHigh = true
                     }
                 default:
                     break
+                }
+
+                // Trigger celebration for new high scores in lives-based modes
+                if gotNewHigh {
+                    SoundManager.shared.play(.newHighEnd)
+                    if !ProcessInfo.processInfo.isPreview {
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    }
+
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.7)) {
+                        showConfetti = true
+                    }
+
+                    // Auto-dismiss after celebration
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showConfetti = false
+                        }
+                        // Dismiss game over state after celebration
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            engine.dismissGameOver()
+                            isNewHigh = false
+                        }
+                    }
                 }
             }
         }
@@ -362,6 +390,16 @@ struct ContentView: View {
                     withAnimation(.easeOut(duration: 0.25)) {
                         showInstructionCard = true
                     }
+                }
+            }
+        }
+        .onChange(of: selectedTime) { _, newTime in
+            // Sync engine.roundLength when user changes time via TimeScoreSelector
+            // Only for timed modes, and not during gameplay
+            if !engine.isRunning && !engine.isCountingDown {
+                if gameMode == .classic || gameMode == .boppy {
+                    engine.roundLength = newTime
+                    engine.remaining = Double(newTime)
                 }
             }
         }
@@ -445,24 +483,32 @@ struct ContentView: View {
         ZStack(alignment: .top) {
             VStack(spacing: 0) {
                 topBarSection(layout: layout, theme: theme)
+
                 settingsSection(layout: layout, theme: theme)
 
-                // Stats section (Score/Time display) - only for modes that use it
-                if config.showsStatsSection {
-                    Spacer().frame(height: config.statsTopPadding(layout))
+                // Stats section placement depends on mode
+                // For Tappy/Seeky: Spacer first, then stats (pushes stats toward board)
+                // For others: Stats first, then Spacer (pushes stats toward header)
+                if config.showsStatsSection && !config.statsNearBoard {
+                    Spacer().frame(height: config.headerToStatsSpacing(layout))
                     statsSection(layout: layout, theme: theme)
                 }
 
-                // Spacer between header and board
+                // Spacer between header/stats and board (only for non-Zoomy modes)
                 if config.usesFlexibleSpacer {
-                    Spacer(minLength: config.boardSpacerHeight(layout))
-                } else if config.boardSpacerHeight(layout) > 0 {
-                    Spacer().frame(height: config.boardSpacerHeight(layout))
+                    Spacer(minLength: config.headerToStatsSpacing(layout))
+                }
+
+                // Stats near board (Tappy/Seeky) - placed after spacer, above board
+                if config.showsStatsSection && config.statsNearBoard {
+                    statsSection(layout: layout, theme: theme)
+                    Spacer().frame(height: config.statsToBoardSpacing(layout))
                 }
 
                 // Board rendering
                 if config.usesInlineBoard {
-                    // Zoomy uses inline board with different layout
+                    // Zoomy uses inline board - centered in remaining space
+                    Spacer()
                     ZoomyBoardView(
                         theme: theme,
                         layout: layout,
@@ -471,7 +517,7 @@ struct ContentView: View {
                         score: engine.score,
                         onTapDot: { engine.tapZoomyDot($0) }
                     )
-                    .padding(.top, 55)
+                    Spacer()
                 } else {
                     boardSection(layout: layout, theme: theme)
                 }
@@ -497,6 +543,7 @@ struct ContentView: View {
             gameMode: gameMode,
             selectedTime: selectedTime,
             showModeHint: hasCompletedFirstGame && !hasDiscoveredModes,
+            isDailyCompleted: highs.hasPlayedDailyToday(),
             onThemeTap: { handleThemeTap() },
             onThemeLongPress: { showThemeDrawer = true },
             onMenuTap: { handleMenuTap() },
@@ -504,10 +551,20 @@ struct ContentView: View {
                 showSetupPicker = true
                 if !hasDiscoveredModes { hasDiscoveredModes = true }
             },
+            onDailyTap: {
+                guard !engine.isRunning && !engine.isCountingDown else { return }
+                SoundManager.shared.play(.menu)
+                HapticsManager.shared.light()
+                gameMode = .daily
+                engine.setGameMode(.daily)
+                let dailyDuration = HighscoreStore.dailyDurationForToday()
+                engine.roundLength = dailyDuration
+                engine.remaining = Double(dailyDuration)
+                GameMode.daily.save()
+            },
             onButtonFrameChange: { setTimeButtonFrame = $0 },
             onThemeButtonFrameChange: { themeButtonFrame = $0 },
-            onMenuButtonFrameChange: { menuButtonFrame = $0 },
-            onInfoTap: { showInstructionCard = true }
+            onMenuButtonFrameChange: { menuButtonFrame = $0 }
         )
     }
 
@@ -532,6 +589,10 @@ struct ContentView: View {
 
     @ViewBuilder
     private func settingsSection(layout: LayoutController, theme: Theme) -> some View {
+        let config = gameMode.layoutConfig
+        // All modes now use top bar to content spacing (Daily Banner removed)
+        let topPadding = config.topBarToContentSpacing(layout)
+
         if gameMode == .matchy {
             // Matchy header with pills and matches display
             MatchyHeader(
@@ -549,22 +610,20 @@ struct ContentView: View {
                 currentPlayer: engine.matchyCurrentPlayer,
                 isPlaying: engine.isRunning || engine.isCountingDown,
                 flipsCount: engine.matchyAttempts,
-                showPlayersOverlay: $showMatchyPlayersOverlay,
-                showGridOverlay: $showMatchyGridOverlay,
-                playersPillFrame: $matchyPlayersPillFrame,
-                gridPillFrame: $matchyGridPillFrame
+                onInfoTap: { showInstructionCard = true }
             )
             .padding(.horizontal, 20)
-            .padding(.top, layout.scoreboardTopPadding * 1.25)
+            .padding(.top, topPadding)
         } else if gameMode == .daily {
             // Daily mode gets its own card instead of scoreboard
             DailyCard(
                 theme: theme,
                 layout: layout,
                 highs: highs,
-                isRunning: engine.isRunning
+                isRunning: engine.isRunning,
+                onInfoTap: { showInstructionCard = true }
             )
-            .padding(.top, layout.scoreboardTopPadding)
+            .padding(.top, topPadding)
         } else if gameMode == .copy {
             // Copy mode header with difficulty rocker and best round
             CopyHeader(
@@ -576,35 +635,40 @@ struct ContentView: View {
                 currentRound: engine.copyRound,
                 isShowingSequence: engine.copyShowingSequence,
                 isPlaying: engine.isRunning || engine.isCountingDown,
-                isRunning: engine.isRunning || engine.isCountingDown || copySlideDirection != .none
+                isRunning: engine.isRunning || engine.isCountingDown || copySlideDirection != .none,
+                onInfoTap: { showInstructionCard = true }
             )
-            .padding(.top, layout.scoreboardTopPadding)
+            .padding(.top, topPadding)
         } else if gameMode == .zoomy {
-            // Zoomy mode - high score card only (current score shown above container)
+            // Zoomy mode - simple high score header (Daily is now in top bar)
             ZoomyHeader(
                 theme: theme,
                 layout: layout,
-                best: highs.getBest(for: .zoomy, duration: engine.roundLength)
+                best: highs.getBest(for: .zoomy, duration: 0),
+                isPlaying: engine.isRunning || engine.isCountingDown,
+                onInfoTap: { showInstructionCard = true }
             )
-            .padding(.top, layout.scoreboardTopPadding)
+            .padding(.top, topPadding)
         } else if gameMode == .tappy {
-            // Tappy mode - pills only (lives and timer moved to stats section)
+            // Tappy mode - High Score card only (matches Seeky layout)
             TappyHeader(
                 theme: theme,
                 layout: layout,
-                round: engine.tappyRound,
                 best: highs.getBest(for: .tappy, duration: 0),
-                isRunning: engine.isRunning
+                isPlaying: engine.isRunning || engine.isCountingDown,
+                onInfoTap: { showInstructionCard = true }
             )
-            .padding(.top, layout.scoreboardTopPadding * 1.4)
+            .padding(.top, topPadding)
         } else if gameMode == .seeky {
             // Seeky mode header - High Score card only (flat, not a button)
             SeekyHeader(
                 theme: theme,
                 layout: layout,
-                best: highs.getBest(for: .seeky, duration: engine.roundLength)
+                best: highs.getBest(for: .seeky, duration: 0),
+                isPlaying: engine.isRunning || engine.isCountingDown,
+                onInfoTap: { showInstructionCard = true }
             )
-            .padding(.top, layout.scoreboardTopPadding * 0.6)
+            .padding(.top, topPadding)
         } else {
             // Classic and Boppy use pill-based header - under top bar
             ClassicHeader(
@@ -615,12 +679,11 @@ struct ContentView: View {
                 selectedDuration: $selectedTime,
                 isPlaying: engine.isRunning || engine.isCountingDown,
                 timeRemaining: engine.remaining,
-                showHighScoreOverlay: $showHighScoreOverlay,
-                showDurationOverlay: $showDurationOverlay,
-                highScorePillFrame: $highScorePillFrame,
-                durationPillFrame: $durationPillFrame
+                onInfoTap: { showInstructionCard = true },
+                showTimeScoreOverlay: $showTimeScoreOverlay,
+                timeScorePillFrame: $timeScorePillFrame
             )
-            .padding(.top, layout.scoreboardTopPadding * 1.25)
+            .padding(.top, topPadding)
         }
     }
 
@@ -654,12 +717,57 @@ struct ContentView: View {
         engine.isRunning && engine.seekyTimeRemaining <= 2 && engine.seekyTimeRemaining > 0
     }
 
+    // Tappy timer progress (0-1)
+    private var tappyTimeProgress: Double {
+        guard engine.isRunning && engine.tappyState == .active else { return 1.0 }
+        let timeLimit = engine.tappyCurrentTimeLimit()
+        guard timeLimit > 0 else { return 1.0 }
+        return engine.tappyTimeRemaining / timeLimit
+    }
+
+    // Tappy urgent state (<=25% time remaining)
+    private var tappyIsUrgent: Bool {
+        engine.isRunning && engine.tappyState == .active && tappyTimeProgress < 0.25
+    }
+
     @ViewBuilder
     private func classicStatsView(layout: LayoutController, theme: Theme) -> some View {
         Group {
+            // Copy mode shows status and round near the board
+            if gameMode == .copy {
+                CopyStatusDisplay(
+                    theme: theme,
+                    layout: layout,
+                    currentRound: engine.copyRound,
+                    isShowingSequence: engine.copyShowingSequence,
+                    isPlaying: engine.isRunning || engine.isCountingDown
+                )
+            }
+            // Tappy uses integrated score container like Seeky
+            else if gameMode == .tappy {
+                VStack(spacing: layout.spacingLoose) {  // More spacing between container and hearts
+                    // Score container with integrated timer (Round + Time)
+                    TappyScoreContainer(
+                        theme: theme,
+                        layout: layout,
+                        round: engine.tappyRound,
+                        timeRemaining: Int(ceil(engine.tappyTimeRemaining > 0 ? engine.tappyTimeRemaining : engine.tappyCurrentTimeLimit())),
+                        timeProgress: tappyTimeProgress,
+                        isUrgent: tappyIsUrgent,
+                        isRunning: engine.isRunning && engine.tappyState == .active
+                    )
+
+                    // Lives display below timer
+                    TappyLivesDisplay(
+                        theme: theme,
+                        layout: layout,
+                        lives: engine.lives
+                    )
+                }
+            }
             // Seeky uses its own integrated score container with center-out timer
-            if gameMode == .seeky {
-                VStack(spacing: layout.unit * 2) {
+            else if gameMode == .seeky {
+                VStack(spacing: layout.spacingLoose) {  // More spacing between container and hearts
                     // Score container with integrated timer
                     SeekyScoreContainer(
                         theme: theme,
@@ -793,18 +901,6 @@ struct ContentView: View {
     @ViewBuilder
     private func boardSection(layout: LayoutController, theme: Theme) -> some View {
         VStack(spacing: layout.unit * 8) {
-            // Tappy stats (hearts + timer) shown just above the board
-            if gameMode == .tappy {
-                TappyStatsSection(
-                    theme: theme,
-                    layout: layout,
-                    lives: engine.lives,
-                    timeRemaining: engine.tappyTimeRemaining,
-                    timeLimit: engine.tappyCurrentTimeLimit(),
-                    isActive: engine.isRunning && engine.tappyState == .active
-                )
-            }
-
             ZStack {
                 // Copy Classic uses 4-dot Simon board
                 if gameMode == .copy && copyDifficulty == .classic {
@@ -816,15 +912,15 @@ struct ContentView: View {
                         onTap: { engine.tapDot($0) }
                     )
                     .transition(.asymmetric(
-                        insertion: .offset(x: -500),
-                        removal: .offset(x: -500)
+                        insertion: .offset(x: -layout.screenWidth),
+                        removal: .offset(x: -layout.screenWidth)
                     ))
                 } else if gameMode == .copy && copyDifficulty == .challenge {
                     // Copy Challenge uses regular BoardView
                     standardBoardView(layout: layout, theme: theme)
                         .transition(.asymmetric(
-                            insertion: .offset(x: 500),
-                            removal: .offset(x: 500)
+                            insertion: .offset(x: layout.screenWidth),
+                            removal: .offset(x: layout.screenWidth)
                         ))
                 } else if gameMode == .seeky {
                     // Seeky mode - with odd dot detection
@@ -872,7 +968,7 @@ struct ContentView: View {
             seekyOddDot: includeSeekProps ? engine.seekyOddDot : nil,
             seekyDifference: includeSeekProps ? engine.seekyDifference : .color,
             seekyDifferenceAmount: includeSeekProps ? engine.seekyDifferenceAmount : 0,
-            seekyBaseColor: includeSeekProps ? engine.seekyBaseColor : nil,
+            seekyBaseColor: (includeSeekProps && engine.isRunning) ? engine.seekyBaseColor : nil,  // Only use Seeky color during gameplay
             seekyRevealingAnswer: includeSeekProps ? engine.seekyRevealingAnswer : false
         )
         .id(engine.boardEpoch)
@@ -886,9 +982,7 @@ struct ContentView: View {
             // Show either START or END button - END takes over START's position
             // Instant swap with no transition/fade
             if showEndButton {
-                EndGameButton(theme: theme, layout: layout) {
-                    engine.endGameEarly()
-                }
+                EndGameButton(theme: theme, layout: layout, showConfirmation: $showEndGameConfirmation)
                 .transition(.identity)
             } else {
                 StartButton(
@@ -916,6 +1010,8 @@ struct ContentView: View {
     private func handleStartButtonTap() {
         if !engine.isRunning && !engine.isCountingDown {
             if !hasCompletedFirstGame { hasCompletedFirstGame = true }
+            isNewHigh = false  // Reset high score state for new game
+            endedMatchEarly = false  // Reset early end flag
             engine.start()
         } else if engine.popReady && gameMode.showsPOPButton {
             engine.pressPop()
@@ -935,8 +1031,8 @@ struct ContentView: View {
             if engine.isCountingDown, let c = engine.countdown {
                 CountdownOverlay(theme: theme, count: c)
             }
-            // Game over overlay - skip for Matchy (has its own end screen)
-            if engine.gameOver && gameMode != .matchy {
+            // Game over overlay - skip for Matchy (has its own end screen) and when celebrating new high
+            if engine.gameOver && gameMode != .matchy && !showConfetti && !isNewHigh {
                 GameOverOverlay(
                     theme: theme,
                     onOK: { engine.dismissGameOver() },
@@ -956,56 +1052,29 @@ struct ContentView: View {
                 gameSetupPickerView(layout: layout, theme: theme)
             }
 
-            // Matchy overlay pickers
-            if showMatchyPlayersOverlay {
-                MatchyPlayersOverlay(
-                    theme: theme,
-                    layout: layout,
-                    show: $showMatchyPlayersOverlay,
-                    playerCount: Binding(
-                        get: { engine.matchyPlayerCount },
-                        set: { engine.setMatchyPlayerCount($0) }
-                    ),
-                    buttonFrame: matchyPlayersPillFrame
-                )
-            }
-
-            if showMatchyGridOverlay {
-                MatchyGridOverlay(
-                    theme: theme,
-                    layout: layout,
-                    show: $showMatchyGridOverlay,
-                    gridSize: Binding(
-                        get: { MatchyGridSize(rawValue: engine.matchyGridSize) ?? .small },
-                        set: { engine.setMatchyGridSize($0.dotCount) }
-                    ),
-                    buttonFrame: matchyGridPillFrame
-                )
-            }
-
-            // Classic/Boppy high score overlay
-            if showHighScoreOverlay {
-                HighScoreOverlay(
+            // Classic/Boppy time/score selector overlay
+            if showTimeScoreOverlay {
+                TimeScoreSelectorOverlay(
                     theme: theme,
                     layout: layout,
                     gameMode: gameMode,
                     highScores: gameMode == .boppy ? highs.boppyBest : highs.best,
-                    currentDuration: selectedTime,
-                    show: $showHighScoreOverlay,
-                    buttonFrame: highScorePillFrame
+                    selectedDuration: $selectedTime,
+                    show: $showTimeScoreOverlay,
+                    buttonFrame: timeScorePillFrame
                 )
             }
 
-            // Classic/Boppy duration picker overlay
-            if showDurationOverlay {
-                DurationPickerOverlay(
+            // End game confirmation overlay
+            if showEndGameConfirmation {
+                EndGameOverlay(
                     theme: theme,
                     layout: layout,
-                    gameMode: gameMode,
-                    selectedDuration: $selectedTime,
-                    show: $showDurationOverlay,
-                    buttonFrame: durationPillFrame
-                )
+                    show: $showEndGameConfirmation
+                ) {
+                    endedMatchEarly = true
+                    engine.endGameEarly()
+                }
             }
 
             // Matchy turn change card (multiplayer only)
@@ -1035,7 +1104,8 @@ struct ContentView: View {
                 withAnimation(.easeOut(duration: 0.25)) {
                     showInstructionCard = true
                 }
-            }
+            },
+            isDailyCompleted: highs.hasPlayedDailyToday()
         )
     }
 
@@ -1140,4 +1210,5 @@ struct ContentView: View {
         .environmentObject(HighscoreStore())
         .environmentObject(ThemeStore())
         .environmentObject(StoreManager.preview)
+        .environmentObject(AdManager.preview)
 }

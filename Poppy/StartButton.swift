@@ -28,7 +28,7 @@ struct StartButton: View {
     
     private var currentTint: Color {
         if isVisuallyPressed {
-            return theme.accent.darker(by: 0.12)
+            return theme.accent.darker(by: 0.05)
         } else {
             return theme.accent
         }
@@ -186,3 +186,4 @@ struct StartButton: View {
         }
     }
 }
+

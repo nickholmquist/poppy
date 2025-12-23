@@ -67,6 +67,12 @@ struct LayoutController {
     var cornerRadiusMedium: CGFloat { baseRadius * 1.4 }    // ~17pt - cards, containers
     var cornerRadiusLarge: CGFloat { baseRadius * 1.8 }     // ~22pt - scoreboards, modals
 
+    // MARK: - Standardized 3D Button Dimensions
+    /// All 3D elements use the same offset for consistency
+    var button3DHeight: CGFloat { unit * 7 }                // 56pt - visual button height
+    var button3DLayerOffset: CGFloat { unit * 0.8 }         // ~6pt - universal 3D depth offset
+    var button3DTotalHeight: CGFloat { button3DHeight + button3DLayerOffset }  // ~62pt - frame height
+
     // MARK: - Standardized Card Heights
     /// Use these for consistent header/card sizing across modes
     var cardHeightSmall: CGFloat { unit * 11 }              // 88pt - simple score cards (Tappy, Zoomy, Seeky)
@@ -159,7 +165,10 @@ struct LayoutController {
     var scoreboardValueSize: CGFloat { baseText * 1.25 }
     var scoreboardRowSpacing: CGFloat { unit * 1.25 }
     var scoreboardColumnSpacing: CGFloat { unit * 4 }
-    
+
+    /// Standardized height for all header cards (80pt)
+    var headerCardHeight: CGFloat { unit * 10 }
+
     // MARK: Stats Display (Score/Time in center)
     var statsTopPadding: CGFloat {
         if isLargeiPad {
@@ -226,7 +235,7 @@ struct LayoutController {
     var dotSideInset: CGFloat { unit * 0.75 }
     
     // MARK: Dot Sprite
-    var dotLayerOffset: CGFloat { unit }
+    var dotLayerOffset: CGFloat { button3DLayerOffset }  // Use universal 3D offset
     var dotStrokeWidth: CGFloat { 2 }
     var dotPadding: CGFloat { unit * 0.5 }
     var dotGlowRadius: CGFloat { unit * 3.25 }
@@ -246,7 +255,7 @@ struct LayoutController {
     var startButtonVisibleWidth: CGFloat { startButtonWidth * 0.75 }
     var startButtonHeight: CGFloat { unit * 12 }
     var startButtonCornerRadius: CGFloat { baseRadius * 1.7 }
-    var startButtonLayerOffset: CGFloat { unit * 1.5 }
+    var startButtonLayerOffset: CGFloat { button3DLayerOffset }  // Use universal 3D offset
     var startButtonStrokeWidth: CGFloat { 2 }
     var startButtonHorizontalPadding: CGFloat { unit * 2 }
     var startButtonBottomPadding: CGFloat {

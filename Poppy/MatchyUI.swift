@@ -43,79 +43,178 @@ enum MatchyGridSize: Int, CaseIterable {
     }
 }
 
-// MARK: - Pill Button (3D tappable style - matches ClassicPillButton)
+// MARK: - Matchy Settings Toggle (Split button - matches CopyDifficultyRocker)
 
-/// A 3D pill button that triggers an overlay picker
-struct MatchyPillButton<Content: View>: View {
+struct MatchySettingsToggle: View {
     let theme: Theme
     let layout: LayoutController
+    @Binding var playerCount: Int
+    @Binding var gridSize: MatchyGridSize
+    let isDisabled: Bool
+
+    // Use standardized 3D button dimensions
+    private var buttonHeight: CGFloat { layout.button3DHeight }
+    private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
+    private var layerOffset: CGFloat { layout.button3DLayerOffset }
+    private var strokeWidth: CGFloat { layout.strokeWidth }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // Left half - Players
+            MatchySettingsHalf(
+                label: "Players",
+                value: "\(playerCount)P",
+                isLeftHalf: true,
+                cornerRadius: cornerRadius,
+                strokeWidth: strokeWidth,
+                layerOffset: layerOffset,
+                height: buttonHeight,
+                theme: theme,
+                isDisabled: isDisabled
+            ) {
+                // Cycle 1 → 2 → 3 → 4 → 1
+                playerCount = playerCount >= 4 ? 1 : playerCount + 1
+            }
+
+            // Right half - Grid
+            MatchySettingsHalf(
+                label: "Grid",
+                value: gridSize.fullLabel,
+                isLeftHalf: false,
+                cornerRadius: cornerRadius,
+                strokeWidth: strokeWidth,
+                layerOffset: layerOffset,
+                height: buttonHeight,
+                theme: theme,
+                isDisabled: isDisabled
+            ) {
+                // Cycle S → M → L → S
+                let allCases = MatchyGridSize.allCases
+                if let index = allCases.firstIndex(of: gridSize) {
+                    let nextIndex = (index + 1) % allCases.count
+                    gridSize = allCases[nextIndex]
+                }
+            }
+        }
+        .frame(height: layout.button3DTotalHeight, alignment: .top)
+    }
+}
+
+// MARK: - Settings Half Button (One side of the split toggle)
+
+private struct MatchySettingsHalf: View {
+    let label: String
+    let value: String
+    let isLeftHalf: Bool
+    let cornerRadius: CGFloat
+    let strokeWidth: CGFloat
+    let layerOffset: CGFloat
+    let height: CGFloat
+    let theme: Theme
     let isDisabled: Bool
     let onTap: () -> Void
-    @ViewBuilder let content: () -> Content
 
     @State private var isPressed = false
 
-    private var height: CGFloat { layout.unit * 12 }  // Match Classic pills (~96pt)
-    private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
-    private var layerOffset: CGFloat { layout.unit * 1.2 }  // Match Classic layerOffset
+    // Top layer at 0 when popped, moves down to layerOffset when pressed
+    private var currentOffset: CGFloat {
+        isPressed ? layerOffset : 0
+    }
+
+    private var leftShape: AnyShape {
+        AnyShape(UnevenRoundedRectangle(
+            topLeadingRadius: cornerRadius,
+            bottomLeadingRadius: cornerRadius,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: 0
+        ))
+    }
+
+    private var rightShape: AnyShape {
+        AnyShape(UnevenRoundedRectangle(
+            topLeadingRadius: 0,
+            bottomLeadingRadius: 0,
+            bottomTrailingRadius: cornerRadius,
+            topTrailingRadius: cornerRadius
+        ))
+    }
+
+    private var shape: AnyShape {
+        isLeftHalf ? leftShape : rightShape
+    }
 
     var body: some View {
-        Button(action: {
-            if !isDisabled {
-                SoundManager.shared.play(.pop)
-                HapticsManager.shared.light()
-                onTap()
-            }
-        }) {
+        ZStack(alignment: .top) {
+            // Bottom depth layer (pushed down by layerOffset)
             ZStack {
-                // Bottom layer (shadow/depth)
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                shape
                     .fill(theme.accent)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(Color.black.opacity(0.35))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
-                    )
-
-                // Top layer (main button)
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(theme.accent)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
-                    )
-                    .offset(y: isPressed ? 0 : -layerOffset)
-
-                // Content
-                content()
-                    .font(.system(size: 24, weight: .semibold, design: .rounded))
-                    .foregroundStyle(theme.textOnAccent)
-                    .offset(y: isPressed ? 0 : -layerOffset)
+                shape
+                    .fill(Color.black.opacity(0.35))
+                shape
+                    .stroke(Color(hex: "#3a3a3a"), lineWidth: strokeWidth)
             }
             .frame(height: height)
-            .frame(maxWidth: .infinity)
+            .offset(y: layerOffset)
+
+            // Top surface layer (at top when popped, moves down when pressed)
+            ZStack {
+                shape
+                    .fill(theme.accent)
+
+                // Center divider (on the inner edge)
+                if isLeftHalf {
+                    HStack {
+                        Spacer()
+                        Rectangle()
+                            .fill(Color(hex: "#3a3a3a"))
+                            .frame(width: strokeWidth)
+                    }
+                }
+
+                // Content - inline label and value
+                HStack(spacing: 6) {
+                    Text(label)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(theme.textOnAccent.opacity(0.8))
+                    Text(value)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(theme.textOnAccent)
+                        .contentTransition(.numericText())
+                }
+
+                // Stroke on top
+                shape
+                    .stroke(Color(hex: "#3a3a3a"), lineWidth: strokeWidth)
+            }
+            .frame(height: height)
+            .offset(y: currentOffset)
         }
-        .buttonStyle(.plain)
-        .opacity(isDisabled ? 0.5 : 1.0)
-        .simultaneousGesture(
+        .frame(maxWidth: .infinity, alignment: .top)
+        .frame(height: height + layerOffset, alignment: .top)
+        .contentShape(Rectangle())
+        .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in
                     if !isDisabled && !isPressed {
-                        withAnimation(.easeOut(duration: 0.1)) {
-                            isPressed = true
-                        }
+                        isPressed = true
                     }
                 }
                 .onEnded { _ in
-                    withAnimation(.easeOut(duration: 0.1)) {
+                    if isPressed {
                         isPressed = false
+                        if !isDisabled {
+                            HapticsManager.shared.light()
+                            SoundManager.shared.play(.pop)
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                onTap()
+                            }
+                        }
                     }
                 }
         )
-        .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isPressed)
+        .animation(.spring(response: 0.15, dampingFraction: 0.7), value: isPressed)
+        .saturation(isDisabled ? 0.3 : 1.0)
     }
 }
 
@@ -154,7 +253,7 @@ struct MatchyPlayersOverlay: View {
     private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
 
     // Account for 3D button's layer offset (top layer is shifted up)
-    private var layerOffset: CGFloat { layout.unit * 1.2 }  // Match pill layerOffset
+    private var layerOffset: CGFloat { layout.button3DLayerOffset }  // Universal 3D offset
 
     private var currentY: CGFloat {
         switch phase {
@@ -181,18 +280,9 @@ struct MatchyPlayersOverlay: View {
 
             // The morphing picker
             ZStack {
-                // Background - consistent corner radius with stroke
+                // Background
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(theme.accent)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
-                    )
-                    .shadow(
-                        color: phase == .expanded ? Color.black.opacity(0.25) : .clear,
-                        radius: phase == .expanded ? 15 : 0,
-                        y: phase == .expanded ? 8 : 0
-                    )
 
                 // Content - no opacity transitions to avoid artifacts
                 if phase == .expanded {
@@ -219,8 +309,16 @@ struct MatchyPlayersOverlay: View {
                 }
             }
             .frame(width: currentWidth, height: currentHeight)
-            .clipped()
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
+            )
+            .shadow(
+                color: phase == .expanded ? Color.black.opacity(0.25) : .clear,
+                radius: phase == .expanded ? 15 : 0,
+                y: phase == .expanded ? 8 : 0
+            )
             .position(x: buttonFrame.midX, y: currentY)
             .animation(.spring(response: 0.3, dampingFraction: 0.85), value: phase)
         }
@@ -257,7 +355,7 @@ struct MatchyPlayersOverlay: View {
                 Spacer()
 
                 // Player label
-                Text(count == 1 ? "Solo" : "\(count)P")
+                Text("\(count)P")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .lineLimit(1)
                     .fixedSize()
@@ -356,7 +454,7 @@ struct MatchyGridOverlay: View {
     private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
 
     // Account for 3D button's layer offset (top layer is shifted up)
-    private var layerOffset: CGFloat { layout.unit * 1.2 }  // Match pill layerOffset
+    private var layerOffset: CGFloat { layout.button3DLayerOffset }  // Universal 3D offset
 
     private var currentY: CGFloat {
         switch phase {
@@ -383,18 +481,9 @@ struct MatchyGridOverlay: View {
 
             // The morphing picker
             ZStack {
-                // Background - consistent corner radius with stroke
+                // Background
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(theme.accent)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
-                    )
-                    .shadow(
-                        color: phase == .expanded ? Color.black.opacity(0.25) : .clear,
-                        radius: phase == .expanded ? 15 : 0,
-                        y: phase == .expanded ? 8 : 0
-                    )
 
                 // Content - no opacity transitions to avoid artifacts
                 if phase == .expanded {
@@ -416,8 +505,16 @@ struct MatchyGridOverlay: View {
                 }
             }
             .frame(width: currentWidth, height: currentHeight)
-            .clipped()
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
+            )
+            .shadow(
+                color: phase == .expanded ? Color.black.opacity(0.25) : .clear,
+                radius: phase == .expanded ? 15 : 0,
+                y: phase == .expanded ? 8 : 0
+            )
             .position(x: buttonFrame.midX, y: currentY)
             .animation(.spring(response: 0.3, dampingFraction: 0.85), value: phase)
         }
@@ -507,9 +604,9 @@ struct MatchyGridOverlay: View {
     }
 }
 
-// MARK: - Matchy Header (Pills + Matches)
+// MARK: - Matchy Header (Settings Row + Matches)
 
-/// Combined header with settings pills and matches display
+/// Combined header with settings toggles and matches display
 struct MatchyHeader: View {
     let theme: Theme
     let layout: LayoutController
@@ -519,121 +616,77 @@ struct MatchyHeader: View {
     let currentPlayer: Int
     let isPlaying: Bool
     let flipsCount: Int  // Number of attempts/flips
-
-    // Overlay state managed by parent for proper z-ordering
-    @Binding var showPlayersOverlay: Bool
-    @Binding var showGridOverlay: Bool
-    @Binding var playersPillFrame: CGRect
-    @Binding var gridPillFrame: CGRect
+    let onInfoTap: () -> Void
 
     private var totalMatches: Int {
         playerScores.reduce(0, +)
     }
 
-    private var pairCount: Int {
-        gridSize.pairCount
+    // Help button sizing
+    private var helpButtonSize: CGFloat { layout.button3DHeight }
+    private var gapWidth: CGFloat { layout.unit }  // Tighter gap (8pt)
+    private var layerOffset: CGFloat { layout.button3DLayerOffset }
+    // Toggle takes remaining width after help button and gap
+    private var toggleWidth: CGFloat {
+        layout.scoreboardExpandedWidth - helpButtonSize - gapWidth
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Settings pills row (3D style matching Classic/Boppy)
-            HStack(spacing: 12) {
-                // Players pill
-                MatchyPillButton(
+        VStack(spacing: layout.unit * 2) {
+            // Settings toggle + Help button row
+            HStack(alignment: .bottom, spacing: gapWidth) {
+                MatchySettingsToggle(
                     theme: theme,
                     layout: layout,
+                    playerCount: $playerCount,
+                    gridSize: $gridSize,
                     isDisabled: isPlaying
-                ) {
-                    showPlayersOverlay = true
-                } content: {
-                    VStack(spacing: PillStyle.contentSpacing) {
-                        Text("Players")
-                            .font(.system(size: PillStyle.labelSize, weight: .semibold, design: .rounded))
-                        HStack(spacing: 6) {
-                            ForEach(0..<playerCount, id: \.self) { _ in
-                                Image(systemName: "person.fill")
-                                    .font(.system(size: 22, weight: .bold))
-                            }
-                        }
-                    }
-                }
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.onAppear {
-                            playersPillFrame = geo.frame(in: .global)
-                        }
-                        .onChange(of: geo.frame(in: .global)) { _, newFrame in
-                            playersPillFrame = newFrame
-                        }
-                    }
                 )
+                .frame(width: toggleWidth)
 
-                // Grid size pill
-                MatchyPillButton(
-                    theme: theme,
-                    layout: layout,
-                    isDisabled: isPlaying
-                ) {
-                    showGridOverlay = true
-                } content: {
-                    VStack(spacing: PillStyle.contentSpacing) {
-                        Text("Grid Size")
-                            .font(.system(size: PillStyle.labelSize, weight: .semibold, design: .rounded))
-                        Text(gridSize.fullLabel)
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                    }
-                }
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.onAppear {
-                            gridPillFrame = geo.frame(in: .global)
-                        }
-                        .onChange(of: geo.frame(in: .global)) { _, newFrame in
-                            gridPillFrame = newFrame
-                        }
-                    }
-                )
+                HelpButton(theme: theme, layout: layout, isPlaying: isPlaying, onTap: onInfoTap)
             }
+            .frame(height: layout.button3DTotalHeight)
 
-            // Matches container - uses theme colors for adaptability
-            // Fixed height to prevent layout jump when switching player counts
-            VStack(spacing: 6) {
+            // Score container - standardized height, inline layout
+            ZStack {
+                RoundedRectangle(cornerRadius: layout.cornerRadiusMedium, style: .continuous)
+                    .fill(Color.black.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: layout.cornerRadiusMedium, style: .continuous)
+                            .strokeBorder(Color.black.opacity(0.15), lineWidth: 2)
+                    )
+
                 if playerCount == 1 {
-                    // Single player - show matches and flips side by side
-                    HStack(spacing: 24) {
-                        // Matches
-                        VStack(spacing: 2) {
-                            Text("Matches")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundStyle(theme.textDark.opacity(0.6))
-                                .textCase(.uppercase)
-                                .tracking(0.5)
+                    // Single player - inline Pairs | Flips
+                    HStack(spacing: layout.unit * 4) {
+                        HStack(spacing: 12) {
+                            Text("Pairs")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundStyle(theme.textDark.opacity(0.7))
                             Text("\(totalMatches)")
-                                .font(.system(size: 42, weight: .heavy, design: .rounded))
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .monospacedDigit()
                                 .foregroundStyle(theme.textDark)
                         }
 
-                        // Flips
-                        VStack(spacing: 2) {
+                        Rectangle()
+                            .fill(theme.textDark.opacity(0.3))
+                            .frame(width: 2, height: 28)
+
+                        HStack(spacing: 12) {
                             Text("Flips")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundStyle(theme.textDark.opacity(0.6))
-                                .textCase(.uppercase)
-                                .tracking(0.5)
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundStyle(theme.textDark.opacity(0.7))
                             Text("\(flipsCount)")
-                                .font(.system(size: 42, weight: .heavy, design: .rounded))
-                                .foregroundStyle(theme.textDark.opacity(0.9))
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(theme.textDark)
                         }
                     }
                 } else {
-                    // Multiplayer - show all scores
-                    Text("Matches")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(theme.textDark.opacity(0.6))
-                        .textCase(.uppercase)
-                        .tracking(0.5)
-
-                    HStack(spacing: 10) {
+                    // Multiplayer - show all player scores inline
+                    HStack(spacing: 12) {
                         ForEach(0..<playerCount, id: \.self) { index in
                             PlayerScoreBadge(
                                 theme: theme,
@@ -645,16 +698,7 @@ struct MatchyHeader: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: layout.unit * 16)  // Match ClassicScoreContainer height (~128pt)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(theme.textDark.opacity(0.1))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .strokeBorder(theme.textDark.opacity(0.2), lineWidth: 2)
-                    )
-            )
+            .frame(width: layout.scoreboardExpandedWidth, height: layout.headerCardHeight)
         }
         .frame(width: layout.scoreboardExpandedWidth)
     }
@@ -1047,10 +1091,6 @@ struct MatchyWinnerOverlay: View {
 #Preview("Matchy Header - 1 Player") {
     @Previewable @State var players = 1
     @Previewable @State var grid: MatchyGridSize = .small
-    @Previewable @State var showPlayers = false
-    @Previewable @State var showGrid = false
-    @Previewable @State var playersFrame: CGRect = .zero
-    @Previewable @State var gridFrame: CGRect = .zero
 
     ZStack {
         Color(hex: "#F9F6EC").ignoresSafeArea()
@@ -1064,42 +1104,15 @@ struct MatchyWinnerOverlay: View {
             currentPlayer: 0,
             isPlaying: false,
             flipsCount: 7,
-            showPlayersOverlay: $showPlayers,
-            showGridOverlay: $showGrid,
-            playersPillFrame: $playersFrame,
-            gridPillFrame: $gridFrame
+            onInfoTap: {}
         )
         .padding()
-
-        if showPlayers {
-            MatchyPlayersOverlay(
-                theme: .daylight,
-                layout: .preview,
-                show: $showPlayers,
-                playerCount: $players,
-                buttonFrame: playersFrame
-            )
-        }
-
-        if showGrid {
-            MatchyGridOverlay(
-                theme: .daylight,
-                layout: .preview,
-                show: $showGrid,
-                gridSize: $grid,
-                buttonFrame: gridFrame
-            )
-        }
     }
 }
 
 #Preview("Matchy Header - 4 Players") {
     @Previewable @State var players = 4
     @Previewable @State var grid: MatchyGridSize = .large
-    @Previewable @State var showPlayers = false
-    @Previewable @State var showGrid = false
-    @Previewable @State var playersFrame: CGRect = .zero
-    @Previewable @State var gridFrame: CGRect = .zero
 
     ZStack {
         Color(hex: "#F9F6EC").ignoresSafeArea()
@@ -1113,31 +1126,8 @@ struct MatchyWinnerOverlay: View {
             currentPlayer: 2,
             isPlaying: true,
             flipsCount: 12,
-            showPlayersOverlay: $showPlayers,
-            showGridOverlay: $showGrid,
-            playersPillFrame: $playersFrame,
-            gridPillFrame: $gridFrame
+            onInfoTap: {}
         )
         .padding()
-
-        if showPlayers {
-            MatchyPlayersOverlay(
-                theme: .daylight,
-                layout: .preview,
-                show: $showPlayers,
-                playerCount: $players,
-                buttonFrame: playersFrame
-            )
-        }
-
-        if showGrid {
-            MatchyGridOverlay(
-                theme: .daylight,
-                layout: .preview,
-                show: $showGrid,
-                gridSize: $grid,
-                buttonFrame: gridFrame
-            )
-        }
     }
 }

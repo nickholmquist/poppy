@@ -93,6 +93,21 @@ final class HighscoreStore: ObservableObject {
             dailyTodayScore = todayScore > 0 ? todayScore : nil
         } else {
             dailyTodayScore = nil
+
+            // Check if streak should be reset (missed a day)
+            // Streak is valid only if last played was today or yesterday
+            if !dailyLastPlayedDate.isEmpty {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) {
+                    let yesterdayString = formatter.string(from: yesterday)
+                    if dailyLastPlayedDate != yesterdayString {
+                        // Missed more than one day, reset streak to 0
+                        dailyStreak = 0
+                        UserDefaults.standard.set(0, forKey: dailyStreakKey)
+                    }
+                }
+            }
         }
 
         // Load untimed mode scores

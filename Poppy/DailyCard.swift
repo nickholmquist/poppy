@@ -13,6 +13,7 @@ struct DailyCard: View {
     let layout: LayoutController
     @ObservedObject var highs: HighscoreStore
     let isRunning: Bool
+    let onInfoTap: () -> Void
 
     // Today's daily info
     private var todayDateFormatted: String {
@@ -52,7 +53,7 @@ struct DailyCard: View {
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topTrailing) {
             // Single layer card (no 3D effect)
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(theme.accent)
@@ -105,7 +106,18 @@ struct DailyCard: View {
                 .padding(.top, 4)
             }
             .frame(width: cardWidth, height: cardHeight)
+
+            // Question mark icon in top right corner
+            Button(action: onInfoTap) {
+                Image(systemName: "questionmark")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(theme.textOnAccent.opacity(0.5))
+            }
+            .padding(.top, 12)
+            .padding(.trailing, 14)
+            .disabled(isRunning)
         }
+        .frame(width: cardWidth, height: cardHeight)
         .frame(maxWidth: .infinity, alignment: .center)
         .opacity(isRunning ? 0.5 : 1.0)
         .animation(.easeOut(duration: 0.2), value: isRunning)
@@ -124,7 +136,8 @@ struct DailyCard: View {
                 theme: .daylight,
                 layout: layout,
                 highs: HighscoreStore(),
-                isRunning: false
+                isRunning: false,
+                onInfoTap: {}
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.top, 100)
@@ -145,7 +158,8 @@ struct DailyCard: View {
                 theme: .daylight,
                 layout: layout,
                 highs: store,
-                isRunning: false
+                isRunning: false,
+                onInfoTap: {}
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.top, 100)

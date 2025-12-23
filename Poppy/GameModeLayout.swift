@@ -57,10 +57,10 @@ struct GameModeLayoutConfig {
     /// Whether the stats section (Score/Time labels) should be shown
     var showsStatsSection: Bool {
         switch mode {
-        case .classic, .daily, .boppy, .seeky:
+        case .classic, .daily, .boppy, .seeky, .tappy, .copy:
             return true
-        case .matchy, .copy, .zoomy, .tappy:
-            return false  // Tappy shows stats above board instead
+        case .matchy, .zoomy:
+            return false
         }
     }
 
@@ -68,10 +68,8 @@ struct GameModeLayoutConfig {
 
     var timerStyle: TimerStyle {
         switch mode {
-        case .classic, .daily, .boppy, .seeky:
-            return .morphing
-        case .tappy:
-            return .solidBar
+        case .classic, .daily, .boppy, .seeky, .tappy:
+            return .morphing  // Tappy now uses integrated container like Seeky
         case .matchy, .copy, .zoomy:
             return .none
         }
@@ -96,31 +94,26 @@ struct GameModeLayoutConfig {
 
     // MARK: - Spacing Configuration
 
-    /// Padding between settings section and stats/board
-    func statsTopPadding(_ layout: LayoutController) -> CGFloat {
-        guard showsStatsSection else { return 0 }
-        switch mode {
-        case .classic, .boppy, .daily:
-            return layout.unit * 2  // Tight spacing - header sits just above score container
-        default:
-            return layout.statsTopPadding
-        }
+    /// Spacing from top bar to first content element (40pt)
+    func topBarToContentSpacing(_ layout: LayoutController) -> CGFloat {
+        layout.unit * 5  // 40pt - more breathing room from top bar
     }
 
-    /// Spacer height between header/stats and board
-    func boardSpacerHeight(_ layout: LayoutController) -> CGFloat {
-        switch mode {
-        case .zoomy:
-            return 0  // No spacer - content flows directly
-        case .matchy:
-            return layout.spacingLoose  // Match Classic/Boppy spacing
-        case .tappy:
-            return layout.spacingLoose  // 24pt
-        case .classic, .boppy, .seeky:
-            return layout.spacingLoose  // minLength for flexible spacer
-        default:
-            return 0  // Flexible spacer handles this
-        }
+    /// Standard vertical spacing between content sections (16pt)
+    /// All 3D elements now have proper frame bounds, so spacing is consistent
+    func sectionSpacing(_ layout: LayoutController) -> CGFloat {
+        layout.spacingNormal  // 16pt - uniform for all modes
+    }
+
+    /// Spacing from headers to stats containers (16pt)
+    func headerToStatsSpacing(_ layout: LayoutController) -> CGFloat {
+        layout.spacingNormal  // 16pt - matches section spacing
+    }
+
+    /// Spacing from stats/lives to the dot board
+    /// Matches the dots-to-start-button distance for visual consistency
+    func statsToBoardSpacing(_ layout: LayoutController) -> CGFloat {
+        layout.boardBottomPadding  // Same as dots to start button
     }
 
     /// Whether to use a flexible spacer (Spacer()) vs fixed
@@ -130,6 +123,17 @@ struct GameModeLayoutConfig {
             return false
         default:
             return true  // Classic, Boppy, Daily, Copy, Seeky, Tappy, Matchy use flexible spacer
+        }
+    }
+
+    /// Whether stats should be placed near the board (Gestalt proximity)
+    /// When true, the flexible spacer comes BEFORE stats, pushing stats toward the board
+    var statsNearBoard: Bool {
+        switch mode {
+        case .classic, .boppy, .tappy, .seeky, .copy:
+            return true  // Score/time displays relate to gameplay, not header
+        default:
+            return false
         }
     }
 

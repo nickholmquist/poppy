@@ -327,7 +327,8 @@ struct HighScoreBoard: View {
             // Zoomy is survival mode - single best score
             singleScoreContent(value: highs.zoomyBest[0] ?? 0, label: "catches")
         case .tappy:
-            timedScoresContent(scores: highs.tappyBest, durations: [10, 15, 20])
+            // Tappy is lives-based mode - single best score
+            singleScoreContent(value: highs.tappyBest[0] ?? 0, label: "rounds")
         case .seeky:
             singleScoreContent(value: highs.seekyBest, label: "rounds")
         }

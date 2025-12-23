@@ -18,9 +18,110 @@ enum PillStyle {
     static let contentSpacing: CGFloat = 6
 }
 
-// MARK: - Classic Header (Two Side-by-Side Pills)
+// MARK: - Help Button (3D Square)
 
-/// Header for Classic and Boppy modes - two taller pills side by side
+/// Small 3D square button with "?" for showing game instructions
+struct HelpButton: View {
+    let theme: Theme
+    let layout: LayoutController
+    let isPlaying: Bool
+    let onTap: () -> Void
+
+    @State private var isPressed = false
+    @State private var debouncedIsPlaying = false
+
+    private var buttonSize: CGFloat { layout.button3DHeight }
+    private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
+    private var layerOffset: CGFloat { layout.button3DLayerOffset }
+
+    // Stay pressed during gameplay (use debounced state to prevent flicker)
+    private var isVisuallyPressed: Bool {
+        isPressed || debouncedIsPlaying
+    }
+
+    private var currentOffset: CGFloat {
+        isVisuallyPressed ? layerOffset : 0
+    }
+
+    private var topLayerColor: Color {
+        isVisuallyPressed ? theme.accent.darker(by: 0.05) : theme.accent
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            // Bottom layer (depth)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(theme.accent)
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(Color.black.opacity(0.35))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
+                )
+                .frame(width: buttonSize, height: buttonSize)
+                .offset(y: layerOffset)
+
+            // Top layer (main button)
+            ZStack {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(topLayerColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
+                    )
+
+                Image(systemName: "questionmark")
+                    .font(.system(size: buttonSize * 0.4, weight: .bold))
+                    .foregroundStyle(theme.textOnAccent)
+            }
+            .frame(width: buttonSize, height: buttonSize)
+            .offset(y: currentOffset)
+        }
+        .frame(width: buttonSize, height: buttonSize + layerOffset, alignment: .top)
+        .contentShape(Rectangle())
+        .accessibilityLabel("How to play")
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isVisuallyPressed)
+        .onAppear { debouncedIsPlaying = isPlaying }
+        .onChange(of: isPlaying) { _, newValue in
+            if newValue {
+                // Delay press to ignore short pulses (e.g., during difficulty switch animations)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    if isPlaying {
+                        debouncedIsPlaying = true
+                    }
+                }
+            } else {
+                // Delay release to prevent flicker during mode transitions
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    if !isPlaying {
+                        debouncedIsPlaying = false
+                    }
+                }
+            }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !isPressed && !isPlaying {
+                        isPressed = true
+                    }
+                }
+                .onEnded { _ in
+                    guard !isPlaying else { return }
+                    SoundManager.shared.play(.pop)
+                    HapticsManager.shared.light()
+                    onTap()
+                    isPressed = false
+                }
+        )
+    }
+}
+
+// MARK: - Classic Header (Combined Time/Score Selector)
+
+/// Header for Classic and Boppy modes - single pill showing time and high score
 struct ClassicHeader: View {
     let theme: Theme
     let layout: LayoutController
@@ -29,12 +130,11 @@ struct ClassicHeader: View {
     @Binding var selectedDuration: Int
     let isPlaying: Bool
     var timeRemaining: Double = 0  // Countdown time during gameplay
+    let onInfoTap: () -> Void
 
     // Overlay state managed by parent for proper z-ordering
-    @Binding var showHighScoreOverlay: Bool
-    @Binding var showDurationOverlay: Bool
-    @Binding var highScorePillFrame: CGRect
-    @Binding var durationPillFrame: CGRect
+    @Binding var showTimeScoreOverlay: Bool
+    @Binding var timeScorePillFrame: CGRect
 
     private var currentHighScore: Int {
         highScores[selectedDuration] ?? 0
@@ -49,29 +149,45 @@ struct ClassicHeader: View {
     }
 
     private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
-    private var layerOffset: CGFloat { layout.unit * 1.2 }
-    private var pillHeight: CGFloat { layout.unit * 12 }  // Taller pills (~96pt)
+    private var layerOffset: CGFloat { layout.button3DLayerOffset }
+    private var pillHeight: CGFloat { layout.button3DHeight }
 
-    @State private var highScorePressed = false
-    @State private var durationPressed = false
+    // Help button is square, same height as pill
+    private var helpButtonSize: CGFloat { pillHeight }
+    private var gapWidth: CGFloat { layout.unit }  // Tighter gap (8pt)
+    // Pill takes remaining width after help button and gap
+    private var pillWidth: CGFloat {
+        layout.scoreboardExpandedWidth - helpButtonSize - gapWidth
+    }
+
+    @State private var isPressed = false
+
+    // Top layer at 0 when popped, moves down to layerOffset when pressed
+    private var currentOffset: CGFloat {
+        (isPressed || isPlaying || showTimeScoreOverlay) ? layerOffset : 0
+    }
+
+    // Pressed/disabled color - darken slightly while keeping saturation
+    private var topLayerColor: Color {
+        (isPressed || isPlaying || showTimeScoreOverlay) ? theme.accent.darker(by: 0.05) : theme.accent
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
-            // High Score Pill
-            highScorePill
+        HStack(alignment: .bottom, spacing: gapWidth) {
+            timeScorePill
+                .frame(width: pillWidth)
 
-            // Duration Pill
-            durationPill
+            HelpButton(theme: theme, layout: layout, isPlaying: isPlaying, onTap: onInfoTap)
         }
-        .frame(width: layout.scoreboardExpandedWidth)
+        .frame(width: layout.scoreboardExpandedWidth, height: layout.button3DTotalHeight)
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: - High Score Pill
+    // MARK: - Combined Time/Score Pill
 
-    private var highScorePill: some View {
-        ZStack {
-            // Bottom layer (depth)
+    private var timeScorePill: some View {
+        ZStack(alignment: .top) {
+            // Bottom layer (depth) - pushed down by layerOffset
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(theme.accent)
                 .overlay(
@@ -82,130 +198,85 @@ struct ClassicHeader: View {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
                 )
+                .frame(height: pillHeight)
+                .offset(y: layerOffset)
 
-            // Top layer (main)
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(theme.accent)
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
-                )
-                .offset(y: (highScorePressed || isPlaying || showHighScoreOverlay) ? 0 : -layerOffset)
+            // Top layer (main) - at top when popped, moves down when pressed
+            ZStack {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(topLayerColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
+                    )
 
-            // Content
-            VStack(spacing: PillStyle.contentSpacing) {
-                Text("High Score")
-                    .font(.system(size: PillStyle.labelSize, weight: .bold, design: .rounded))
-                    .foregroundStyle(theme.textOnAccent.opacity(0.8))
+                // Content: Inline centered layout
+                HStack(spacing: 24) {
+                    // Time
+                    Text(displayTime)
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundStyle(theme.textOnAccent)
+                        .contentTransition(.numericText())
+                        .animation(.easeInOut(duration: 0.15), value: displayTime)
 
-                Text("\(currentHighScore)")
-                    .font(.system(size: PillStyle.valueSize, weight: .black, design: .rounded))
-                    .foregroundStyle(theme.textOnAccent)
+                    // Divider
+                    Rectangle()
+                        .fill(theme.textOnAccent.opacity(0.3))
+                        .frame(width: 2, height: pillHeight * 0.4)
+
+                    // High Score
+                    HStack(spacing: 6) {
+                        Text("High Score")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(theme.textOnAccent.opacity(0.8))
+                        Text("\(currentHighScore)")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundStyle(theme.textOnAccent)
+                    }
+                }
+                .padding(.horizontal, 20)
             }
-            .offset(y: (highScorePressed || isPlaying || showHighScoreOverlay) ? 0 : -layerOffset)
+            .frame(height: pillHeight)
+            .offset(y: currentOffset)
         }
-        .frame(height: pillHeight)
+        .frame(height: layout.button3DTotalHeight, alignment: .top)
         .frame(maxWidth: .infinity)
-        .saturation(isPlaying ? 0.3 : 1.0)
-        .animation(.easeOut(duration: 0.15), value: isPlaying)
-        .animation(.easeOut(duration: 0.1), value: highScorePressed)
-        .animation(nil, value: showHighScoreOverlay)
+        .animation(.easeOut(duration: 0.15), value: topLayerColor)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: showTimeScoreOverlay)
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in
-                    if !isPlaying && !highScorePressed {
-                        highScorePressed = true
+                    if !isPlaying && !isPressed {
+                        isPressed = true
                     }
                 }
                 .onEnded { _ in
-                    highScorePressed = false
                     if !isPlaying {
+                        // Open overlay - leave isPressed true so button stays down
                         SoundManager.shared.play(.pop)
                         HapticsManager.shared.light()
-                        showHighScoreOverlay = true
+                        showTimeScoreOverlay = true
+                    } else {
+                        isPressed = false
                     }
                 }
         )
-        .background(
-            GeometryReader { geo in
-                Color.clear.onAppear {
-                    highScorePillFrame = geo.frame(in: .global)
-                }
-                .onChange(of: geo.frame(in: .global)) { _, newFrame in
-                    highScorePillFrame = newFrame
+        .onChange(of: showTimeScoreOverlay) { _, isShowing in
+            if !isShowing {
+                // Small delay so button appears pressed before popping up
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    isPressed = false
                 }
             }
-        )
-    }
-
-    // MARK: - Duration Pill
-
-    private var durationPill: some View {
-        ZStack {
-            // Bottom layer (depth)
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(theme.accent)
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(Color.black.opacity(0.35))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
-                )
-
-            // Top layer (main)
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(theme.accent)
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
-                )
-                .offset(y: (durationPressed || isPlaying || showDurationOverlay) ? 0 : -layerOffset)
-
-            // Content
-            VStack(spacing: PillStyle.contentSpacing) {
-                Text("Time")
-                    .font(.system(size: PillStyle.labelSize, weight: .bold, design: .rounded))
-                    .foregroundStyle(theme.textOnAccent.opacity(0.8))
-
-                Text(displayTime)
-                    .font(.system(size: PillStyle.valueSize, weight: .black, design: .rounded))
-                    .foregroundStyle(theme.textOnAccent)
-                    .contentTransition(.numericText())
-                    .animation(.easeInOut(duration: 0.15), value: displayTime)
-            }
-            .offset(y: (durationPressed || isPlaying || showDurationOverlay) ? 0 : -layerOffset)
         }
-        .frame(height: pillHeight)
-        .frame(maxWidth: .infinity)
-        .saturation(isPlaying ? 0.3 : 1.0)
-        .animation(.easeOut(duration: 0.15), value: isPlaying)
-        .animation(.easeOut(duration: 0.1), value: durationPressed)
-        .animation(nil, value: showDurationOverlay)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isPlaying && !durationPressed {
-                        durationPressed = true
-                    }
-                }
-                .onEnded { _ in
-                    durationPressed = false
-                    if !isPlaying {
-                        SoundManager.shared.play(.pop)
-                        HapticsManager.shared.light()
-                        showDurationOverlay = true
-                    }
-                }
-        )
         .background(
             GeometryReader { geo in
                 Color.clear.onAppear {
-                    durationPillFrame = geo.frame(in: .global)
+                    timeScorePillFrame = geo.frame(in: .global)
                 }
                 .onChange(of: geo.frame(in: .global)) { _, newFrame in
-                    durationPillFrame = newFrame
+                    timeScorePillFrame = newFrame
                 }
             }
         )
@@ -229,8 +300,8 @@ struct ClassicScoreContainer: View {
 
     @State private var pulseOpacity: CGFloat = 1.0
 
-    private var containerHeight: CGFloat { layout.unit * 16 }  // Taller container (~128pt)
-    private var cornerRadius: CGFloat { 20 }
+    private var containerHeight: CGFloat { layout.headerCardHeight }  // Standardized height
+    private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
 
     var body: some View {
         GeometryReader { geo in
@@ -289,19 +360,17 @@ struct ClassicScoreContainer: View {
     @ViewBuilder
     private func scoreContent(textColor: Color) -> some View {
         if showTimer {
-            // Side-by-side layout for Daily mode
-            HStack(spacing: layout.unit * 6) {
-                // Score
-                VStack(spacing: 4) {
+            // Side-by-side inline layout for Daily mode
+            HStack(spacing: layout.unit * 4) {
+                // Score - inline
+                HStack(spacing: 12) {
                     Text("Score")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundStyle(textColor.opacity(0.7))
-                        .fixedSize()
-
                     Text("\(score)")
-                        .font(.system(size: 38, weight: .black, design: .rounded))
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .monospacedDigit()
                         .foregroundStyle(textColor)
-                        .fixedSize()
                         .scaleEffect(scoreBump ? 1.06 : 1.0, anchor: .center)
                         .animation(.spring(response: 0.22, dampingFraction: 0.6), value: scoreBump)
                         .shadow(
@@ -310,31 +379,32 @@ struct ClassicScoreContainer: View {
                         )
                 }
 
-                // Time
-                VStack(spacing: 4) {
-                    Text("Time")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(textColor.opacity(0.7))
-                        .fixedSize()
+                // Divider
+                Rectangle()
+                    .fill(textColor.opacity(0.3))
+                    .frame(width: 2, height: 28)
 
+                // Time - inline
+                HStack(spacing: 12) {
+                    Text("Time")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(textColor.opacity(0.7))
                     Text("\(timeRemaining)s")
-                        .font(.system(size: 38, weight: .black, design: .rounded))
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .monospacedDigit()
                         .foregroundStyle(textColor)
-                        .fixedSize()
                 }
             }
         } else {
-            // Centered score only for Classic/Boppy
-            VStack(spacing: 6) {
+            // Centered inline score for Classic/Boppy
+            HStack(spacing: 12) {
                 Text("Score")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(textColor.opacity(0.7))
-                    .fixedSize()
-
                 Text("\(score)")
-                    .font(.system(size: 44, weight: .black, design: .rounded))
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .monospacedDigit()
                     .foregroundStyle(textColor)
-                    .fixedSize()
                     .scaleEffect(scoreBump ? 1.06 : 1.0, anchor: .center)
                     .animation(.spring(response: 0.22, dampingFraction: 0.6), value: scoreBump)
                     .shadow(
@@ -391,7 +461,7 @@ struct ClassicPillButton<Content: View>: View {
 
     private var height: CGFloat { layout.unit * 6.5 }  // ~52pt
     private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
-    private var layerOffset: CGFloat { layout.unit * 0.6 }
+    private var layerOffset: CGFloat { layout.button3DLayerOffset }  // Universal 3D offset
 
     var body: some View {
         Button(action: {
@@ -421,18 +491,18 @@ struct ClassicPillButton<Content: View>: View {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
                     )
-                    .offset(y: isPressed ? 0 : -layerOffset)
+                    .offset(y: (isPressed || isDisabled) ? 0 : -layerOffset)
 
                 // Content
                 content()
                     .foregroundStyle(theme.textOnAccent)
-                    .offset(y: isPressed ? 0 : -layerOffset)
+                    .offset(y: (isPressed || isDisabled) ? 0 : -layerOffset)
             }
             .frame(height: height)
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .opacity(isDisabled ? 0.5 : 1.0)
+        .saturation(isDisabled ? 0.3 : 1.0)
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in
@@ -452,18 +522,19 @@ struct ClassicPillButton<Content: View>: View {
     }
 }
 
-// MARK: - High Score Overlay
+// MARK: - Time/Score Selector Overlay
 
-struct HighScoreOverlay: View {
+struct TimeScoreSelectorOverlay: View {
     let theme: Theme
     let layout: LayoutController
     let gameMode: GameMode
     let highScores: [Int: Int]
-    let currentDuration: Int
+    @Binding var selectedDuration: Int
     @Binding var show: Bool
     let buttonFrame: CGRect
 
     @State private var phase: AnimationPhase = .collapsed
+    @State private var localDuration: Int = 30
 
     enum AnimationPhase {
         case collapsed
@@ -475,16 +546,16 @@ struct HighScoreOverlay: View {
     }
 
     private var collapsedWidth: CGFloat { buttonFrame.width }
-    private var collapsedHeight: CGFloat { buttonFrame.height }
+    // Use the visual button height (not the frame which includes layer offset)
+    private var collapsedHeight: CGFloat { layout.button3DHeight }
 
     // Height based on number of durations
     private var expandedHeight: CGFloat {
-        let rowHeight: CGFloat = 44
+        let rowHeight: CGFloat = 52
         let spacing: CGFloat = 8
         let padding: CGFloat = 28
         let titleHeight: CGFloat = 36
-        let closeButtonHeight: CGFloat = 48  // 36 button + 12 padding
-        return titleHeight + CGFloat(availableDurations.count) * rowHeight + CGFloat(availableDurations.count - 1) * spacing + closeButtonHeight + padding
+        return titleHeight + CGFloat(availableDurations.count) * rowHeight + CGFloat(availableDurations.count - 1) * spacing + padding
     }
 
     private var currentHeight: CGFloat {
@@ -492,16 +563,16 @@ struct HighScoreOverlay: View {
     }
 
     private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
+    private var layerOffset: CGFloat { layout.button3DLayerOffset }
 
-    // Account for 3D button's layer offset (top layer is shifted up)
-    private var layerOffset: CGFloat { layout.unit * 1.2 }
-
+    // Position overlay to match the pressed button's top layer position
     private var currentY: CGFloat {
+        let pressedOffset = layerOffset  // Match pressed button position
         switch phase {
         case .collapsed:
-            return buttonFrame.midY - layerOffset
+            return buttonFrame.minY + pressedOffset + collapsedHeight / 2
         case .expanded:
-            return buttonFrame.minY - layerOffset + currentHeight / 2
+            return buttonFrame.minY + pressedOffset + currentHeight / 2
         }
     }
 
@@ -537,204 +608,41 @@ struct HighScoreOverlay: View {
                 if phase == .expanded {
                     VStack(spacing: 8) {
                         // Title
-                        Text("High Scores")
+                        Text("Select Duration")
                             .font(.system(size: 16, weight: .bold, design: .rounded))
                             .foregroundStyle(theme.textOnAccent)
                             .padding(.bottom, 4)
 
-                        // Score rows
+                        // Duration rows with scores
                         ForEach(availableDurations, id: \.self) { duration in
-                            scoreRow(duration: duration)
-                        }
-
-                        // Close button
-                        Button(action: {
-                            SoundManager.shared.play(.pop)
-                            HapticsManager.shared.light()
-                            dismissOverlay()
-                        }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(theme.accent)
-                                .frame(width: 36, height: 36)
-                                .background(
-                                    Circle()
-                                        .fill(theme.textOnAccent.opacity(0.85))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.top, 4)
-                    }
-                    .padding(14)
-                } else {
-                    // Collapsed content (matches pill exactly)
-                    VStack(spacing: PillStyle.contentSpacing) {
-                        Text("High Score")
-                            .font(.system(size: PillStyle.labelSize, weight: .bold, design: .rounded))
-                            .foregroundStyle(theme.textOnAccent.opacity(0.8))
-
-                        Text("\(highScores[currentDuration] ?? 0)")
-                            .font(.system(size: PillStyle.valueSize, weight: .black, design: .rounded))
-                            .foregroundStyle(theme.textOnAccent)
-                    }
-                }
-            }
-            .frame(width: collapsedWidth, height: currentHeight)
-            .clipped()
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .position(x: buttonFrame.midX, y: currentY)
-            .animation(.spring(response: 0.3, dampingFraction: 0.85), value: phase)
-        }
-        .ignoresSafeArea()
-        .onAppear {
-            expandOverlay()
-        }
-    }
-
-    private func scoreRow(duration: Int) -> some View {
-        let score = highScores[duration] ?? 0
-        let isCurrentDuration = duration == currentDuration
-
-        return HStack {
-            Text("\(duration)s")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-
-            Spacer()
-
-            Text("\(score)")
-                .font(.system(size: 20, weight: .black, design: .rounded))
-        }
-        .foregroundStyle(theme.textOnAccent.opacity(isCurrentDuration ? 1.0 : 0.7))
-        .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity)
-        .frame(height: 44)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(theme.textOnAccent.opacity(0.1))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(theme.textOnAccent, lineWidth: isCurrentDuration ? 2 : 0)
-        )
-    }
-
-    private func expandOverlay() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                phase = .expanded
-            }
-        }
-    }
-
-    private func dismissOverlay() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            phase = .collapsed
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            show = false
-        }
-    }
-}
-
-// MARK: - Duration Picker Overlay
-
-struct DurationPickerOverlay: View {
-    let theme: Theme
-    let layout: LayoutController
-    let gameMode: GameMode
-    @Binding var selectedDuration: Int
-    @Binding var show: Bool
-    let buttonFrame: CGRect
-
-    @State private var phase: AnimationPhase = .collapsed
-    @State private var localDuration: Int = 30
-
-    enum AnimationPhase {
-        case collapsed
-        case expanded
-    }
-
-    private var availableDurations: [Int] {
-        gameMode.availableDurations
-    }
-
-    private var collapsedWidth: CGFloat { buttonFrame.width }
-    private var collapsedHeight: CGFloat { buttonFrame.height }
-
-    // Height based on number of durations
-    private var expandedHeight: CGFloat {
-        let rowHeight: CGFloat = 48
-        let spacing: CGFloat = 8
-        let padding: CGFloat = 28
-        return CGFloat(availableDurations.count) * rowHeight + CGFloat(availableDurations.count - 1) * spacing + padding
-    }
-
-    private var currentHeight: CGFloat {
-        phase == .expanded ? expandedHeight : collapsedHeight
-    }
-
-    private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
-
-    // Account for 3D button's layer offset (top layer is shifted up)
-    private var layerOffset: CGFloat { layout.unit * 1.2 }
-
-    private var currentY: CGFloat {
-        switch phase {
-        case .collapsed:
-            return buttonFrame.midY - layerOffset
-        case .expanded:
-            return buttonFrame.minY - layerOffset + currentHeight / 2
-        }
-    }
-
-    private var dimOpacity: Double {
-        phase == .expanded ? 0.4 : 0
-    }
-
-    var body: some View {
-        ZStack {
-            // Dimmed background
-            Color.black
-                .opacity(dimOpacity)
-                .ignoresSafeArea()
-                .onTapGesture { dismissOverlay() }
-                .animation(.easeOut(duration: 0.2), value: phase)
-
-            // The morphing overlay
-            ZStack {
-                // Background
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(theme.accent)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: 2)
-                    )
-                    .shadow(
-                        color: phase == .expanded ? Color.black.opacity(0.25) : .clear,
-                        radius: phase == .expanded ? 15 : 0,
-                        y: phase == .expanded ? 8 : 0
-                    )
-
-                // Content
-                if phase == .expanded {
-                    VStack(spacing: 8) {
-                        ForEach(availableDurations, id: \.self) { duration in
-                            durationOption(duration)
+                            durationRow(duration: duration)
                         }
                     }
                     .padding(14)
                 } else {
-                    // Collapsed content (matches pill exactly)
-                    VStack(spacing: PillStyle.contentSpacing) {
-                        Text("Time")
-                            .font(.system(size: PillStyle.labelSize, weight: .bold, design: .rounded))
-                            .foregroundStyle(theme.textOnAccent.opacity(0.8))
-
+                    // Collapsed content (matches pill exactly - inline layout)
+                    HStack(spacing: 24) {
+                        // Time value
                         Text("\(localDuration)s")
-                            .font(.system(size: PillStyle.valueSize, weight: .black, design: .rounded))
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
                             .foregroundStyle(theme.textOnAccent)
+
+                        // Divider
+                        Rectangle()
+                            .fill(theme.textOnAccent.opacity(0.3))
+                            .frame(width: 2, height: collapsedHeight * 0.4)
+
+                        // High Score - inline
+                        HStack(spacing: 6) {
+                            Text("High Score")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundStyle(theme.textOnAccent.opacity(0.8))
+                            Text("\(highScores[localDuration] ?? 0)")
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundStyle(theme.textOnAccent)
+                        }
                     }
+                    .padding(.horizontal, 20)
                 }
             }
             .frame(width: collapsedWidth, height: currentHeight)
@@ -750,7 +658,8 @@ struct DurationPickerOverlay: View {
         }
     }
 
-    private func durationOption(_ duration: Int) -> some View {
+    private func durationRow(duration: Int) -> some View {
+        let score = highScores[duration] ?? 0
         let isSelected = localDuration == duration
 
         return Button(action: {
@@ -763,15 +672,29 @@ struct DurationPickerOverlay: View {
                 confirmSelection()
             }
         }) {
-            Text("\(duration) seconds")
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(isSelected ? theme.accent : theme.textOnAccent.opacity(0.9))
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(isSelected ? theme.textOnAccent : theme.textOnAccent.opacity(0.1))
-                )
+            HStack {
+                Text("\(duration) seconds")
+                    .font(.system(size: 20, weight: isSelected ? .black : .heavy, design: .rounded))
+
+                Spacer()
+
+                // High score for this duration
+                HStack(spacing: 4) {
+                    Image(systemName: "trophy.fill")
+                        .font(.system(size: 14, weight: .bold))
+                    Text("\(score)")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(isSelected ? theme.accent.opacity(0.7) : theme.textOnAccent.opacity(0.6))
+            }
+            .foregroundStyle(isSelected ? theme.accent : theme.textOnAccent)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? theme.textOnAccent : theme.textOnAccent.opacity(0.1))
+            )
         }
         .buttonStyle(.plain)
     }
@@ -804,10 +727,8 @@ struct DurationPickerOverlay: View {
 
 #Preview {
     @Previewable @State var duration = 30
-    @Previewable @State var showHighScore = false
-    @Previewable @State var showDuration = false
-    @Previewable @State var hsFrame: CGRect = .zero
-    @Previewable @State var durFrame: CGRect = .zero
+    @Previewable @State var showTimeScore = false
+    @Previewable @State var pillFrame: CGRect = .zero
 
     ZStack {
         Color(hex: "#F9F6EC")
@@ -821,36 +742,24 @@ struct DurationPickerOverlay: View {
                 highScores: [10: 12, 20: 28, 30: 47, 40: 55, 50: 62, 60: 71],
                 selectedDuration: $duration,
                 isPlaying: false,
-                showHighScoreOverlay: $showHighScore,
-                showDurationOverlay: $showDuration,
-                highScorePillFrame: $hsFrame,
-                durationPillFrame: $durFrame
+                onInfoTap: { print("Info tapped") },
+                showTimeScoreOverlay: $showTimeScore,
+                timeScorePillFrame: $pillFrame
             )
             .padding(.top, 100)
 
             Spacer()
         }
 
-        if showHighScore {
-            HighScoreOverlay(
+        if showTimeScore {
+            TimeScoreSelectorOverlay(
                 theme: .daylight,
                 layout: .preview,
                 gameMode: .classic,
                 highScores: [10: 12, 20: 28, 30: 47, 40: 55, 50: 62, 60: 71],
-                currentDuration: duration,
-                show: $showHighScore,
-                buttonFrame: hsFrame
-            )
-        }
-
-        if showDuration {
-            DurationPickerOverlay(
-                theme: .daylight,
-                layout: .preview,
-                gameMode: .classic,
                 selectedDuration: $duration,
-                show: $showDuration,
-                buttonFrame: durFrame
+                show: $showTimeScore,
+                buttonFrame: pillFrame
             )
         }
     }

@@ -197,7 +197,7 @@ struct DailyCompletedOverlay: View {
                         HapticsManager.shared.light()
                         GameCenterManager.shared.showDailyLeaderboard()
                     }) {
-                        Image(systemName: "gamecontroller.fill")
+                        Image(systemName: "trophy.fill")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(theme.textDark.opacity(0.5))
                             .frame(width: 40, height: 40)
@@ -217,7 +217,7 @@ struct DailyCompletedOverlay: View {
                 .foregroundStyle(completedGreen)
 
             // Score
-            VStack(spacing: 4) {
+            VStack(spacing: 0) {
                 Text("\(score)")
                     .font(.system(size: 48, weight: .black, design: .rounded))
                     .foregroundStyle(theme.textDark)

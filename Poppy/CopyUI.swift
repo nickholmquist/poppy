@@ -22,6 +22,16 @@ struct CopyHeader: View {
     let isShowingSequence: Bool
     let isPlaying: Bool      // Actually in gameplay (for status text)
     let isRunning: Bool      // Disable toggle (includes transitions)
+    let onInfoTap: () -> Void
+
+    // Help button sizing - standard size, aligned at bottom with rocker
+    private var helpButtonSize: CGFloat { layout.button3DHeight }
+    private var gapWidth: CGFloat { layout.unit }  // Tighter gap (8pt)
+    private var layerOffset: CGFloat { layout.button3DLayerOffset }
+    // Rocker takes remaining width after help button and gap
+    private var rockerWidth: CGFloat {
+        layout.scoreboardExpandedWidth - helpButtonSize - gapWidth
+    }
 
     // Status text based on game state
     private var statusText: String {
@@ -41,46 +51,70 @@ struct CopyHeader: View {
     }
 
     var body: some View {
-        VStack(spacing: layout.unit * 2.5) {
-            // Best round card (now first)
-            CopyBestCard(
-                theme: theme,
-                layout: layout,
-                classicBest: classicBest,
-                challengeBest: challengeBest
-            )
-
-            // Difficulty rocker toggle - always visible, disabled during gameplay (now second)
+        // Difficulty rocker toggle + Help button row only
+        HStack(alignment: .bottom, spacing: gapWidth) {
             CopyDifficultyRocker(
                 theme: theme,
                 layout: layout,
-                difficulty: $difficulty
+                difficulty: $difficulty,
+                classicBest: classicBest,
+                challengeBest: challengeBest
             )
+            .frame(width: rockerWidth)
             .allowsHitTesting(!isRunning)
-            .padding(.top, layout.unit * 2)  // Move toggle down by 2 units
 
-            // Status display - always visible
-            VStack(spacing: 12) {
-                // Round indicator - always visible
-                HStack(spacing: 8) {
-                    Text("Round")
-                        .font(.system(size: layout.baseText * 1.5, weight: .bold, design: .rounded))
-                        .foregroundStyle(theme.textDark)
-                    Text("\(currentRound)")
-                        .font(.system(size: layout.baseText * 1.5, weight: .black, design: .rounded))
-                        .foregroundStyle(theme.textDark)
-                }
+            // Use isPlaying (actual gameplay) not isRunning (includes slide animation)
+            HelpButton(theme: theme, layout: layout, isPlaying: isPlaying, onTap: onInfoTap)
+        }
+        // Height matches the taller rocker (button3DHeight + 16 + layerOffset)
+        .frame(height: layout.button3DHeight + 16 + layerOffset)
+        .frame(maxWidth: .infinity)
+    }
+}
 
-                // Status text - always visible
-                Text(statusText)
-                    .font(.system(size: layout.baseText * 2, weight: .heavy, design: .rounded))
-                    .foregroundStyle(statusColor)
-                    .animation(.easeOut(duration: 0.15), value: statusText)
+// MARK: - Copy Status Display (shown near board)
+
+struct CopyStatusDisplay: View {
+    let theme: Theme
+    let layout: LayoutController
+    let currentRound: Int
+    let isShowingSequence: Bool
+    let isPlaying: Bool
+
+    private var statusText: String {
+        if isPlaying {
+            return isShowingSequence ? "Watch..." : "Your turn!"
+        } else {
+            return "Are you ready?"
+        }
+    }
+
+    private var statusColor: Color {
+        if isPlaying && isShowingSequence {
+            return theme.accent
+        }
+        return theme.textDark
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Status text - larger and prominent
+            Text(statusText)
+                .font(.system(size: layout.baseText * 2.5, weight: .heavy, design: .rounded))
+                .foregroundStyle(statusColor)
+                .animation(.easeOut(duration: 0.15), value: statusText)
+
+            // Round indicator below status text
+            HStack(spacing: 6) {
+                Text("Round")
+                    .font(.system(size: layout.baseText * 1.2, weight: .semibold, design: .rounded))
+                    .foregroundStyle(theme.textDark.opacity(0.7))
+                Text("\(currentRound)")
+                    .font(.system(size: layout.baseText * 1.5, weight: .bold, design: .rounded))
+                    .foregroundStyle(theme.textDark)
             }
-            .padding(.top, layout.unit * 1)
         }
         .frame(maxWidth: .infinity)
-        .animation(.easeOut(duration: 0.2), value: isRunning)
     }
 }
 
@@ -90,19 +124,21 @@ struct CopyDifficultyRocker: View {
     let theme: Theme
     let layout: LayoutController
     @Binding var difficulty: CopyDifficulty
+    let classicBest: Int
+    let challengeBest: Int
 
-    // Match the scoreboard width
-    private var totalWidth: CGFloat { layout.scoreboardExpandedWidth }
-    private var buttonHeight: CGFloat { layout.unit * 7 }  // Taller for more square shape
-    private var cornerRadius: CGFloat { layout.unit * 2 }  // Rounded corners
-    private var layerOffset: CGFloat { layout.unit * 0.8 }
-    private var strokeWidth: CGFloat { 2.0 }
+    // Use standardized 3D button dimensions
+    private var buttonHeight: CGFloat { layout.button3DHeight + 16 }  // Taller to fit best scores
+    private var cornerRadius: CGFloat { layout.cornerRadiusMedium }
+    private var layerOffset: CGFloat { layout.button3DLayerOffset }
+    private var strokeWidth: CGFloat { layout.strokeWidth }
 
     var body: some View {
         HStack(spacing: 0) {
             // Classic (left half)
             DifficultyHalfButton(
                 label: "Classic",
+                best: classicBest,
                 isLeftHalf: true,
                 isSelected: difficulty == .classic,
                 cornerRadius: cornerRadius,
@@ -122,6 +158,7 @@ struct CopyDifficultyRocker: View {
             // Challenge (right half)
             DifficultyHalfButton(
                 label: "Challenge",
+                best: challengeBest,
                 isLeftHalf: false,
                 isSelected: difficulty == .challenge,
                 cornerRadius: cornerRadius,
@@ -138,7 +175,7 @@ struct CopyDifficultyRocker: View {
                 CopyDifficulty.challenge.save()
             }
         }
-        .frame(width: totalWidth, height: buttonHeight + layerOffset)
+        .frame(height: buttonHeight + layerOffset, alignment: .top)
     }
 }
 
@@ -146,6 +183,7 @@ struct CopyDifficultyRocker: View {
 
 private struct DifficultyHalfButton: View {
     let label: String
+    let best: Int
     let isLeftHalf: Bool
     let isSelected: Bool
     let cornerRadius: CGFloat
@@ -158,9 +196,9 @@ private struct DifficultyHalfButton: View {
 
     @State private var isPressed = false
 
-    // Both are always popped up, press animation only when tapping
+    // Top layer at 0 when popped, moves down to layerOffset when pressed
     private var currentOffset: CGFloat {
-        isPressed ? 0 : -layerOffset
+        isPressed ? layerOffset : 0
     }
 
     // Selected = accent, Unselected = grey
@@ -188,15 +226,21 @@ private struct DifficultyHalfButton: View {
         isSelected ? theme.textOnAccent : Color(hex: "#3a3a3a")
     }
 
-    var body: some View {
-        ZStack {
-            // Bottom depth layer (stays in place)
-            depthLayer
+    private var secondaryTextColor: Color {
+        isSelected ? theme.textOnAccent.opacity(0.7) : Color(hex: "#3a3a3a").opacity(0.7)
+    }
 
-            // Top surface layer (moves down when pressed)
+    var body: some View {
+        ZStack(alignment: .top) {
+            // Bottom depth layer (pushed down by layerOffset)
+            depthLayer
+                .offset(y: layerOffset)
+
+            // Top surface layer (at top when popped, moves down when pressed)
             surfaceLayer
                 .offset(y: currentOffset)
         }
+        .frame(height: height + layerOffset, alignment: .top)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -325,136 +369,22 @@ private struct DifficultyHalfButton: View {
                 .strokeBorder(Color(hex: "#3a3a3a"), lineWidth: strokeWidth)
             }
 
-            // Label
-            Text(label)
-                .font(.system(size: layout.baseText, weight: .bold, design: .rounded))
-                .foregroundStyle(textColor)
-        }
-        .frame(height: height)
-    }
-}
-
-// MARK: - Best Round Card
-
-struct CopyBestCard: View {
-    let theme: Theme
-    let layout: LayoutController
-    let classicBest: Int
-    let challengeBest: Int
-
-    private var cardWidth: CGFloat {
-        layout.scoreboardExpandedWidth
-    }
-
-    private var cardHeight: CGFloat {
-        layout.unit * 16  // Taller to fit both scores
-    }
-
-    var body: some View {
-        ZStack {
-            // Card background - use accent color directly
-            RoundedRectangle(cornerRadius: layout.scoreboardCornerRadius, style: .continuous)
-                .fill(theme.accent)
-                .overlay(
-                    RoundedRectangle(cornerRadius: layout.scoreboardCornerRadius, style: .continuous)
-                        .stroke(Color(hex: "#3a3a3a"), lineWidth: 2)
-                )
-                .frame(width: cardWidth, height: cardHeight)
-
-            // Content
-            VStack(spacing: 8) {
-                // Header - matches scoreboardTitleSize
-                Text("High Scores")
-                    .font(.system(size: layout.scoreboardTitleSize, weight: .bold, design: .rounded))
-                    .foregroundStyle(theme.textOnAccent)
-                    .padding(.bottom, 4)
-
-                // Two scores side by side
-                HStack(spacing: 0) {
-                    // Classic (left)
-                    VStack(spacing: 0) {
-                        Text("Classic")
-                            .font(.system(size: layout.baseText * 0.85, weight: .semibold, design: .rounded))
-                            .foregroundStyle(theme.textOnAccent.opacity(0.85))
-                        Text("\(classicBest)")
-                            .font(.system(size: layout.baseText * 2, weight: .black, design: .rounded))
-                            .foregroundStyle(theme.textOnAccent)
-                        Text(classicBest == 1 ? "round" : "rounds")
-                            .font(.system(size: layout.baseText * 0.75, weight: .medium, design: .rounded))
-                            .foregroundStyle(theme.textOnAccent.opacity(0.7))
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    // Divider
-                    Rectangle()
-                        .fill(theme.textOnAccent.opacity(0.3))
-                        .frame(width: 1, height: layout.unit * 8)
-
-                    // Challenge (right)
-                    VStack(spacing: 0) {
-                        Text("Challenge")
-                            .font(.system(size: layout.baseText * 0.85, weight: .semibold, design: .rounded))
-                            .foregroundStyle(theme.textOnAccent.opacity(0.85))
-                        Text("\(challengeBest)")
-                            .font(.system(size: layout.baseText * 2, weight: .black, design: .rounded))
-                            .foregroundStyle(theme.textOnAccent)
-                        Text(challengeBest == 1 ? "round" : "rounds")
-                            .font(.system(size: layout.baseText * 0.75, weight: .medium, design: .rounded))
-                            .foregroundStyle(theme.textOnAccent.opacity(0.7))
-                    }
-                    .frame(maxWidth: .infinity)
+            // Label + Best Score
+            VStack(spacing: 2) {
+                Text(label)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(textColor)
+                HStack(spacing: 4) {
+                    Text("Best")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(secondaryTextColor)
+                    Text("\(best)")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundStyle(textColor)
                 }
             }
-            .padding(.horizontal, layout.unit * 2)
-
-            // Game Center button - top right corner
-            Button(action: {
-                SoundManager.shared.play(.pop)
-                HapticsManager.shared.light()
-                GameCenterManager.shared.showLeaderboards()
-            }) {
-                Image(systemName: "gamecontroller.fill")
-                    .font(.system(size: layout.isIPad ? 20 : 16, weight: .semibold))
-                    .foregroundStyle(theme.textOnAccent.opacity(0.7))
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            .padding(.trailing, 16)
-            .padding(.top, 8)
         }
-        .frame(width: cardWidth, height: cardHeight)
-        .frame(maxWidth: .infinity, alignment: .center)
-    }
-}
-
-// MARK: - Watch/Your Turn Status Indicator
-
-struct CopyStatusIndicator: View {
-    let theme: Theme
-    let layout: LayoutController
-    let isShowingSequence: Bool
-    let sequenceLength: Int
-    let currentIndex: Int
-
-    var body: some View {
-        VStack(spacing: 8) {
-            // Status text
-            Text(isShowingSequence ? "Watch..." : "Your turn!")
-                .font(.system(size: layout.baseText * 1.4, weight: .bold, design: .rounded))
-                .foregroundStyle(isShowingSequence ? theme.accent : theme.textDark)
-                .animation(.easeOut(duration: 0.2), value: isShowingSequence)
-
-            // Sequence length indicator (subtle)
-            if isShowingSequence {
-                Text("\(currentIndex + 1) of \(sequenceLength)")
-                    .font(.system(size: layout.baseText * 0.85, weight: .medium, design: .rounded))
-                    .foregroundStyle(theme.textDark.opacity(0.5))
-            }
-        }
-        .frame(height: layout.unit * 5)
-        .frame(maxWidth: .infinity)
+        .frame(height: height)
     }
 }
 
@@ -509,7 +439,7 @@ struct SimonBoard: View {
 
     // The "pop" offset - how much the top circle is raised
     private var layerOffset: CGFloat {
-        layout.unit * 1.2
+        layout.button3DLayerOffset  // Universal 3D offset
     }
 
     var body: some View {
@@ -563,7 +493,11 @@ private struct SimonDotView: View {
 
     // Top circle color based on state
     private var topColor: Color {
-        if isPressed {
+        if isGamePressed {
+            // Sequence highlighting - use bright colors
+            return colors[index]
+        } else if isLocalPressed {
+            // User touch - use pressed colors
             return colorsPressed[index]
         } else if isActive {
             return colors[index]
@@ -672,7 +606,8 @@ private struct SimonDotView: View {
                     currentRound: 3,
                     isShowingSequence: false,
                     isPlaying: false,
-                    isRunning: false
+                    isRunning: false,
+                    onInfoTap: {}
                 )
                 Spacer()
             }
@@ -710,7 +645,9 @@ private struct SimonDotView: View {
                 CopyDifficultyRocker(
                     theme: .daylight,
                     layout: layout,
-                    difficulty: .constant(.classic)
+                    difficulty: .constant(.classic),
+                    classicBest: 7,
+                    challengeBest: 4
                 )
                 Spacer()
             }
