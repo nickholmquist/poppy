@@ -148,14 +148,10 @@ final class AnalyticsManager {
     }
     
     // MARK: - Game Center Events
-    
-    func trackGameCenterAuthenticated(playerID: String) {
-        PostHogSDK.shared.capture(
-            "game_center_authenticated",
-            properties: [
-                "player_id": playerID
-            ]
-        )
+
+    func trackGameCenterAuthenticated() {
+        // Don't send playerID to avoid linking analytics to user identity
+        PostHogSDK.shared.capture("game_center_authenticated")
     }
     
     func trackLeaderboardSubmission(score: Int, duration: Int) {

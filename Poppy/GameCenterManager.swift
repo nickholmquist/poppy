@@ -96,10 +96,8 @@ final class GameCenterManager: NSObject, ObservableObject {
                 print("✅ Game Center authenticated: \(GKLocalPlayer.local.displayName)")
                 self.isAuthenticated = true
                 
-                // Track Game Center authentication
-                AnalyticsManager.shared.trackGameCenterAuthenticated(
-                    playerID: GKLocalPlayer.local.gamePlayerID
-                )
+                // Track Game Center authentication (anonymized - no playerID)
+                AnalyticsManager.shared.trackGameCenterAuthenticated()
             } else {
                 print("⚠️ Game Center not authenticated")
                 self.isAuthenticated = false
