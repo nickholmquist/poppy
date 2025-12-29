@@ -58,8 +58,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Initialize Google Mobile Ads SDK (skip in preview mode)
         if !ProcessInfo.processInfo.environment.keys.contains("XCODE_RUNNING_FOR_PREVIEWS") {
+            // Configure for child-safe, family-friendly ads
+            MobileAds.shared.requestConfiguration.tagForChildDirectedTreatment = true
+            MobileAds.shared.requestConfiguration.maxAdContentRating = .general
+
             MobileAds.shared.start { _ in
-                print("Google Mobile Ads SDK initialized")
+                print("Google Mobile Ads SDK initialized (child-safe mode)")
                 AdManager.shared.loadInterstitialAd()
             }
         }
